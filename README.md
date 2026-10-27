@@ -1,12 +1,20 @@
 # CRM MM Planejados
 
-Cópia independente do CRM da MM Design, preparada para a operação da MM Planejados. A aplicação está em `crm/` e usa um banco MySQL separado (`mm_planejados_crm`). Leads, usuários, configurações e integrações do CRM original não foram copiados.
+Cópia independente do CRM da MM Design. O mesmo código pode ser usado para testes locais no XAMPP e na Hostinger, com configurações e bancos separados em cada ambiente. O `config.php` real não é publicado no GitHub.
 
-## Configuração local
+## Teste local no XAMPP
 
-1. Em hospedagens com banco já criado no painel (como Hostinger), selecione o banco no phpMyAdmin e importe `crm/database/schema-hostinger.sql`. Para desenvolvimento local, importe `crm/database/schema.sql`, que cria o banco `mm_planejados_crm`.
-2. Edite `crm/config.php` com as credenciais locais ou configure as variáveis de ambiente `MMPLANEJADOS_*` descritas em `crm/config.example.php`.
-3. Defina `MMPLANEJADOS_ADMIN_PASSWORD_HASH` com um hash criado no PHP usando `password_hash()`. Não use uma senha em texto aberto no arquivo.
-4. Abra `/crm/login.php` no servidor local.
+1. Inicie Apache e MySQL no XAMPP.
+2. No phpMyAdmin local (`http://localhost/phpmyadmin`), importe `crm/database/schema.sql`. Esse arquivo cria o banco local `mm_planejados_crm`.
+3. O `crm/config.php` local usa o MySQL padrão do XAMPP: banco `mm_planejados_crm`, usuário `root` e senha vazia. Se você definiu uma senha para o `root`, ajuste esse campo.
+4. Acesse `http://localhost/mmdesignplanejados/crm/login.php`.
 
-A chave `MMPLANEJADOS_SETTINGS_ENCRYPTION_KEY` deve ser exclusiva para esta instalação. Configure domínio, WhatsApp, e-mail, integrações e canais de contato da política de privacidade da MM Planejados antes de publicar.
+## Publicação na Hostinger
+
+1. Envie os arquivos do CRM para a hospedagem.
+2. Na hospedagem, crie `crm/config.php` a partir de `crm/config.example.php` pelo Gerenciador de Arquivos ou SFTP. Esse arquivo é ignorado pelo Git e precisa existir separadamente no servidor.
+3. No `config.php` da Hostinger, configure o host MySQL indicado no hPanel, o banco `u432013964_mmplanejados`, o usuário `u432013964_mmplanejados` e a senha MySQL definida na hospedagem.
+4. No phpMyAdmin da Hostinger, selecione esse banco e importe `crm/database/schema-hostinger.sql`.
+5. Defina `admin_password_hash` para a senha do painel. A senha do painel é diferente da senha MySQL.
+
+Os bancos local e da Hostinger são independentes; leads e demais dados de teste não são sincronizados automaticamente com a produção.
