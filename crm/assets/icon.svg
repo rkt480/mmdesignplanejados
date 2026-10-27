@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="MM Planejados">
+  <rect width="512" height="512" rx="112" fill="#0b1018"/>
+  <path d="M98 120h316v272H98z" fill="none" stroke="#c8a66a" stroke-width="12"/>
+  <path d="M256 126v260M105 256h302" fill="none" stroke="#c8a66a" stroke-width="8"/>
+  <path d="M232 246h8v30h-8zM272 246h8v30h-8z" fill="#c8a66a"/>
+  <text x="256" y="226" text-anchor="middle" fill="#fff" font-family="Arial, Helvetica, sans-serif" font-size="108" font-weight="800" letter-spacing="-12">MM</text>
+</svg>

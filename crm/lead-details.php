@@ -1,0 +1,477 @@
+<?php
+
+declare(strict_types=1);
+
+require_once __DIR__ . '/lib/auth.php';
+require_once __DIR__ . '/lib/forms.php';
+crm_require_login();
+
+$leadTags = $leadTags ?? crm_decode_lead_tags($lead);
+$visibleLeadTags = $visibleLeadTags ?? lead_visible_tags($lead, $leadTags);
+$hasVisibleEmail = false;
+$leadFormAnswers = array_values(array_filter(
+  crm_decode_lead_form_answers($lead),
+  static function (mixed $answer) use (&$hasVisibleEmail): bool {
+    if (!is_array($answer)) {
+      return false;
+    }
+
+    $question = (string) ($answer['question'] ?? '');
+    $questionId = (string) ($answer['question_id'] ?? '');
+    $value = trim((string) ($answer['answer'] ?? $answer['value'] ?? ''));
+
+    if ($value === '' || crm_is_technical_lead_answer($questionId, $value)
+      || crm_is_technical_lead_answer($question, $value)) {
+      return false;
+    }
+
+    if (filter_var($value, FILTER_VALIDATE_EMAIL) !== false) {
+      if ($hasVisibleEmail) {
+        return false;
+      }
+      $hasVisibleEmail = true;
+    }
+
+    return true;
+  }
+));
+$leadSubmittedFields = [
+  'Empresa' => trim((string) ($lead['company'] ?? '')),
+  'Segmento' => trim((string) ($lead['segment'] ?? '')),
+  'Como divulga/controla os leads' => trim((string) ($lead['advertises'] ?? '')),
+  'Mensagem ou necessidade' => trim((string) ($lead['message'] ?? '')),
+];
+if ($leadSubmittedFields['Empresa'] === 'Não informado') {
+  $leadSubmittedFields['Empresa'] = '';
+}
+if (strcasecmp($leadSubmittedFields['Segmento'], 'WhatsApp') === 0) {
+  $leadSubmittedFields['Segmento'] = '';
+}
+if (strcasecmp($leadSubmittedFields['Como divulga/controla os leads'], 'whatsapp') === 0) {
+  $leadSubmittedFields['Como divulga/controla os leads'] = '';
+}
+$priorityLeadAnswers = ['interest' => [], 'email' => []];
+$otherLeadAnswers = [];
+foreach ($leadFormAnswers as $answer) {
+  $question = trim((string) ($answer['question'] ?? $answer['question_id'] ?? 'Resposta'));
+  $questionKey = strtolower($question . ' ' . (string) ($answer['question_id'] ?? ''));
+  $value = trim((string) ($answer['answer'] ?? $answer['value'] ?? ''));
+
+  if (str_contains($questionKey, 'interesse') || str_contains($questionKey, 'interest')) {
+    $priorityLeadAnswers['interest'][] = ['question' => $question, 'answer' => $value];
+  } elseif (filter_var($value, FILTER_VALIDATE_EMAIL) !== false) {
+    $priorityLeadAnswers['email'][] = ['question' => $question, 'answer' => $value];
+  } else {
+    $otherLeadAnswers[] = ['question' => $question, 'answer' => $value];
+  }
+}
+$leadDisplayAnswers = array_merge(
+  $priorityLeadAnswers['interest'],
+  $priorityLeadAnswers['email']
+);
+foreach ($leadSubmittedFields as $label => $value) {
+  if ($value !== '') {
+    $leadDisplayAnswers[] = ['question' => $label, 'answer' => $value];
+  }
+}
+$leadDisplayAnswers = array_merge($leadDisplayAnswers, $otherLeadAnswers);
+$hasLeadSubmissionData = count(array_filter($leadSubmittedFields, static fn(string $value): bool => $value !== '')) > 0 || count($leadFormAnswers) > 0;
+?>
+<div class="lead-modal-card">
+  <header class="lead-modal-header">
+    <div>
+      <p class="eyebrow">Detalhes do contato</p>
+      <h2><?= htmlspecialchars((string) ($lead['name'] ?? 'Sem nome')) ?></h2>
+      <?php if (count($visibleLeadTags) > 0): ?>
+        <div class="lead-tags lead-modal-tags">
+          <?php foreach ($visibleLeadTags as $tag): ?>
+            <span><?= htmlspecialchars($tag) ?></span>
+          <?php endforeach; ?>
+        </div>
+      <?php endif; ?>
+    </div>
+    <button class="modal-close details-toggle" type="button" data-toggle-details>×</button>
+  </header>
+
+  <div class="lead-modal-body">
+    <aside class="lead-modal-tabs" aria-label="Seções do contato">
+      <button class="active" type="button" data-lead-tab="dados">Dados do contato</button>
+      <?php if ($canViewOrigin): ?>
+        <button type="button" data-lead-tab="origem">Origem e UTM</button>
+      <?php endif; ?>
+      <button type="button" data-lead-tab="comercial">Comercial</button>
+      <?php if ($canViewTimeline): ?>
+        <button type="button" data-lead-tab="historico">Histórico</button>
+      <?php endif; ?>
+      <?php if (!$isAgency): ?>
+        <button type="button" data-lead-tab="coach">Coach de vendas</button>
+      <?php endif; ?>
+    </aside>
+
+    <section class="lead-modal-content">
+      <div class="lead-tab-panel active" data-lead-panel="dados">
+        <h3>Contato</h3>
+        <?php if ($isAgency): ?>
+          <dl class="lead-details">
+            <div>
+              <dt>Nome do contato</dt>
+              <dd><?= htmlspecialchars((string) ($lead['name'] ?? 'Sem nome')) ?></dd>
+            </div>
+            <div>
+              <dt>WhatsApp</dt>
+              <dd><?= htmlspecialchars(crm_normalize_lead_whatsapp((string) ($lead['whatsapp'] ?? '')) ?: 'Não informado') ?></dd>
+            </div>
+            <div>
+              <dt>CPF</dt>
+              <dd><?= htmlspecialchars(crm_format_cpf((string) ($lead['cpf'] ?? '')) ?: 'Não informado') ?></dd>
+            </div>
+            <div>
+              <dt>Etapa</dt>
+              <dd><?= htmlspecialchars($statusLabels[$status] ?? $status) ?></dd>
+            </div>
+            <div>
+              <dt>Vendedor</dt>
+              <dd><?= htmlspecialchars(trim((string) ($lead['assigned_user_name'] ?? '')) !== '' ? (string) $lead['assigned_user_name'] : 'Sem vendedor') ?></dd>
+            </div>
+            <div>
+              <dt>Recebido em</dt>
+              <dd><?= htmlspecialchars(date('d/m/Y H:i', strtotime((string) ($lead['created_at'] ?? 'now')))) ?></dd>
+            </div>
+            <div class="field-wide">
+              <dt>Tags</dt>
+              <dd><?= htmlspecialchars(implode(', ', $visibleLeadTags) ?: 'Nenhuma') ?></dd>
+            </div>
+          </dl>
+        <?php else: ?>
+        <form class="update-form lead-contact-edit" method="post" action="update.php">
+          <input type="hidden" name="_csrf_token" value="<?= htmlspecialchars(crm_csrf_token()) ?>" />
+          <input type="hidden" name="id" value="<?= htmlspecialchars((string) ($lead['id'] ?? '')) ?>" />
+          <input type="hidden" name="status" value="<?= htmlspecialchars($status) ?>" />
+          <label>
+            Nome do contato
+            <input type="text" name="name" value="<?= htmlspecialchars((string) ($lead['name'] ?? '')) ?>" autocomplete="name" required />
+          </label>
+          <label>
+            WhatsApp
+            <input type="tel" name="whatsapp" value="<?= htmlspecialchars((string) ($lead['whatsapp'] ?? '')) ?>" autocomplete="tel" placeholder="55DDDNUMERO" />
+          </label>
+          <label>
+            CPF do cliente
+            <input type="text" name="cpf" value="<?= htmlspecialchars(crm_format_cpf((string) ($lead['cpf'] ?? ''))) ?>" inputmode="numeric" autocomplete="off" placeholder="000.000.000-00" maxlength="14" data-cpf-input />
+          </label>
+          <button type="submit">Salvar contato</button>
+        </form>
+        <dl class="lead-details">
+          <div class="field-wide">
+            <dt>Origem do lead</dt>
+            <dd><?= htmlspecialchars(lead_sales_origin_summary($lead)) ?></dd>
+          </div>
+          <?php if (lead_origin_campaign_name($lead) !== '' && lead_origin_ad_name($lead) !== ''): ?>
+            <div class="field-wide">
+              <dt>Campanha</dt>
+              <dd><?= htmlspecialchars(lead_origin_campaign_name($lead)) ?></dd>
+            </div>
+          <?php endif; ?>
+          <div>
+            <dt>CPF</dt>
+            <dd><?= htmlspecialchars(crm_format_cpf((string) ($lead['cpf'] ?? '')) ?: 'Não informado') ?></dd>
+          </div>
+          <div>
+            <dt>Recebido em</dt>
+            <dd><?= htmlspecialchars(date('d/m/Y H:i', strtotime((string) ($lead['created_at'] ?? 'now')))) ?></dd>
+          </div>
+          <div>
+            <dt>Status WhatsApp</dt>
+            <dd>
+              <?= htmlspecialchars(lead_whatsapp_status_label($lead)) ?>
+              <?php if (!empty($lead['whatsapp_sent_at'])): ?>
+                em <?= htmlspecialchars(date('d/m/Y H:i', strtotime((string) $lead['whatsapp_sent_at']))) ?>
+              <?php endif; ?>
+            </dd>
+          </div>
+        </dl>
+        <?php endif; ?>
+
+        <?php if ($hasLeadSubmissionData): ?>
+          <section class="lead-form-answers">
+            <h3>Dados enviados pelo formulário</h3>
+            <dl class="lead-details">
+              <?php foreach ($leadDisplayAnswers as $answer): ?>
+                <?php
+                  $answerQuestion = trim((string) ($answer['question'] ?? 'Resposta'));
+                  $answerValue = trim((string) ($answer['answer'] ?? $answer['value'] ?? ''));
+                  if ($answerValue === '') {
+                      continue;
+                  }
+                ?>
+                <div class="field-wide">
+                  <dt><?= htmlspecialchars($answerQuestion !== '' ? $answerQuestion : 'Resposta') ?></dt>
+                  <dd><?= nl2br(htmlspecialchars($answerValue)) ?></dd>
+                </div>
+              <?php endforeach; ?>
+            </dl>
+          </section>
+        <?php endif; ?>
+      </div>
+
+      <?php if ($canViewOrigin): ?>
+      <div class="lead-tab-panel" data-lead-panel="origem" hidden>
+        <h3>Origem e UTM</h3>
+        <dl class="lead-details">
+          <div>
+            <dt>Origem do contato</dt>
+            <dd><?= htmlspecialchars(lead_origin_summary($lead)) ?></dd>
+          </div>
+          <div>
+            <dt>UTM source</dt>
+            <dd><?= htmlspecialchars(trim((string) ($lead['utm_source'] ?? '')) !== '' ? (string) $lead['utm_source'] : 'Sem UTM') ?></dd>
+          </div>
+          <div>
+            <dt>UTM medium</dt>
+            <dd><?= htmlspecialchars(trim((string) ($lead['utm_medium'] ?? '')) !== '' ? (string) $lead['utm_medium'] : 'Sem UTM') ?></dd>
+          </div>
+          <div>
+            <dt>UTM campaign</dt>
+            <dd><?= htmlspecialchars(trim((string) ($lead['utm_campaign'] ?? '')) !== '' ? (string) $lead['utm_campaign'] : 'Sem UTM') ?></dd>
+          </div>
+          <div>
+            <dt>UTM content / term</dt>
+            <dd>
+              <?= htmlspecialchars((string) ($lead['utm_content'] ?? '')) ?>
+              <?= trim((string) ($lead['utm_term'] ?? '')) !== '' ? ' / ' . htmlspecialchars((string) $lead['utm_term']) : '' ?>
+              <?= trim((string) ($lead['utm_content'] ?? '')) === '' && trim((string) ($lead['utm_term'] ?? '')) === '' ? 'Sem UTM' : '' ?>
+            </dd>
+          </div>
+          <div class="field-wide">
+            <dt>Página/referrer</dt>
+            <dd>
+              <?= htmlspecialchars(trim((string) ($lead['landing_path'] ?? '')) !== '' ? (string) $lead['landing_path'] : (string) ($lead['page'] ?? '')) ?>
+              <?= trim((string) ($lead['referrer'] ?? '')) !== '' ? ' | Ref: ' . htmlspecialchars((string) $lead['referrer']) : '' ?>
+            </dd>
+          </div>
+        </dl>
+      </div>
+      <?php endif; ?>
+
+      <div class="lead-tab-panel" data-lead-panel="comercial" hidden>
+        <?php if ($isAgency): ?>
+          <h3>Informações comerciais</h3>
+          <dl class="lead-details">
+            <div>
+              <dt>Valor da proposta</dt>
+              <dd><?= htmlspecialchars(lead_money_input($lead, 'proposal_value') ?: 'Não informado') ?></dd>
+            </div>
+            <div>
+              <dt>Previsão de fechamento</dt>
+              <dd><?= htmlspecialchars(trim((string) ($lead['expected_close_date'] ?? '')) ?: 'Não informada') ?></dd>
+            </div>
+            <div>
+              <dt>Motivo de perda</dt>
+              <dd><?= htmlspecialchars(trim((string) ($lead['lost_reason'] ?? '')) ?: 'Não informado') ?></dd>
+            </div>
+            <div class="field-wide">
+              <dt>Observações do vendedor</dt>
+              <dd><?= nl2br(htmlspecialchars(trim((string) ($lead['commercial_notes'] ?? '')) ?: 'Nenhuma observação.')) ?></dd>
+            </div>
+            <div class="field-wide">
+              <dt>Tags</dt>
+              <dd><?= htmlspecialchars(implode(', ', $visibleLeadTags) ?: 'Nenhuma') ?></dd>
+            </div>
+            <?php if (!empty($lead['whatsapp_error'])): ?>
+              <div class="field-wide">
+                <dt>Status de envio</dt>
+                <dd><?= htmlspecialchars((string) $lead['whatsapp_error']) ?></dd>
+              </div>
+            <?php endif; ?>
+          </dl>
+        <?php else: ?>
+        <div class="commercial-grid">
+          <?php if (!empty($lead['whatsapp_error'])): ?>
+            <p class="message error-message field-wide"><?= htmlspecialchars((string) $lead['whatsapp_error']) ?></p>
+          <?php endif; ?>
+
+          <?php if ($canManageSales): ?>
+            <section class="commercial-block">
+              <h3>Responsável</h3>
+              <form class="update-form" method="post" action="update.php">
+                <input type="hidden" name="_csrf_token" value="<?= htmlspecialchars(crm_csrf_token()) ?>" />
+                <input type="hidden" name="id" value="<?= htmlspecialchars((string) ($lead['id'] ?? '')) ?>" />
+                <input type="hidden" name="status" value="<?= htmlspecialchars($status) ?>" />
+                <label>
+                  Vendedor
+                  <select name="assigned_user_id">
+                    <option value="">Sem vendedor</option>
+                    <?php foreach ($assignableUsers as $user): ?>
+                      <option value="<?= (int) $user['id'] ?>" <?= (int) ($lead['assigned_user_id'] ?? 0) === (int) $user['id'] ? 'selected' : '' ?>>
+                        <?= htmlspecialchars(crm_user_label($user)) ?>
+                      </option>
+                    <?php endforeach; ?>
+                  </select>
+                </label>
+                <button type="submit">Salvar responsável</button>
+              </form>
+            </section>
+          <?php endif; ?>
+
+          <section class="commercial-block field-wide">
+            <h3>Valores e previsão</h3>
+            <form class="update-form lead-contact-edit" method="post" action="update.php">
+              <input type="hidden" name="_csrf_token" value="<?= htmlspecialchars(crm_csrf_token()) ?>" />
+              <input type="hidden" name="id" value="<?= htmlspecialchars((string) ($lead['id'] ?? '')) ?>" />
+              <input type="hidden" name="status" value="<?= htmlspecialchars($status) ?>" />
+              <label>
+                Valor da proposta
+                <input type="text" name="proposal_value" value="<?= htmlspecialchars(lead_money_input($lead, 'proposal_value')) ?>" inputmode="numeric" autocomplete="off" placeholder="R$ 0,00" data-currency-input />
+              </label>
+              <label>
+                Previsão de fechamento
+                <input type="date" name="expected_close_date" value="<?= htmlspecialchars((string) ($lead['expected_close_date'] ?? '')) ?>" />
+              </label>
+              <label class="field-wide">
+                Motivo de perda
+                <input type="text" name="lost_reason" value="<?= htmlspecialchars((string) ($lead['lost_reason'] ?? '')) ?>" placeholder="Ex: prazo, orçamento, concorrente, sem retorno" />
+              </label>
+              <button type="submit">Salvar proposta</button>
+            </form>
+          </section>
+
+          <section class="commercial-block field-wide">
+            <h3>Observações do vendedor</h3>
+            <form class="update-form" method="post" action="update.php">
+              <input type="hidden" name="_csrf_token" value="<?= htmlspecialchars(crm_csrf_token()) ?>" />
+              <input type="hidden" name="id" value="<?= htmlspecialchars((string) ($lead['id'] ?? '')) ?>" />
+              <input type="hidden" name="status" value="<?= htmlspecialchars($status) ?>" />
+              <label>
+                Tags do contato
+                <input type="text" name="tags" value="<?= htmlspecialchars(implode(', ', $leadTags)) ?>" placeholder="proposta, retorno, indicação" data-tags-input />
+                <span class="tag-preview" data-tags-preview hidden></span>
+              </label>
+              <label>
+                Observações do vendedor
+                <textarea name="commercial_notes" rows="3" placeholder="Ex: pediu orçamento, retornar amanhã, perfil bom..."><?= htmlspecialchars((string) ($lead['commercial_notes'] ?? '')) ?></textarea>
+              </label>
+              <button type="submit">Salvar detalhes</button>
+            </form>
+          </section>
+
+          <section class="commercial-block">
+            <h3>Follow-up</h3>
+            <form class="update-form" method="post" action="assign-followup.php">
+              <input type="hidden" name="_csrf_token" value="<?= htmlspecialchars(crm_csrf_token()) ?>" />
+              <input type="hidden" name="lead_id" value="<?= htmlspecialchars((string) ($lead['id'] ?? '')) ?>" />
+              <label>
+                Fluxo de follow-up
+                <select name="flow_id" required>
+                  <option value="">Selecione um fluxo</option>
+                  <?php foreach ($followupFlows as $flow): ?>
+                    <option value="<?= (int) $flow['id'] ?>" <?= ((int) ($lead['followup_flow_id'] ?? 0) === (int) $flow['id']) ? 'selected' : '' ?>>
+                      <?= htmlspecialchars((string) $flow['name']) ?>
+                    </option>
+                  <?php endforeach; ?>
+                </select>
+              </label>
+              <button type="submit">Aplicar follow-up</button>
+            </form>
+          </section>
+
+          <section class="commercial-block">
+            <h3>Agendamento</h3>
+            <?php if (!$googleCalendarConnected): ?>
+              <p class="message error-message">Google Agenda ainda não conectado. Vá em Configurações para conectar antes de criar agendamentos.</p>
+            <?php else: ?>
+              <form class="update-form schedule-form" method="post" action="schedule-lead.php">
+                <input type="hidden" name="_csrf_token" value="<?= htmlspecialchars(crm_csrf_token()) ?>" />
+                <input type="hidden" name="lead_id" value="<?= htmlspecialchars((string) ($lead['id'] ?? '')) ?>" />
+                <label class="field-wide">
+                  Título
+                  <input type="text" name="title" value="<?= htmlspecialchars('Reunião com ' . (string) ($lead['name'] ?? 'contato')) ?>" />
+                </label>
+                <label>
+                  Data
+                  <input type="date" name="event_date" value="<?= htmlspecialchars(date('Y-m-d')) ?>" required />
+                </label>
+                <label>
+                  Horário
+                  <input type="time" name="event_time" value="<?= htmlspecialchars(date('H:i', strtotime('+1 hour'))) ?>" required />
+                </label>
+                <label>
+                  Duração
+                  <select name="duration_minutes">
+                    <option value="30">30 minutos</option>
+                    <option value="45">45 minutos</option>
+                    <option value="60" selected>1 hora</option>
+                    <option value="90">1h30</option>
+                    <option value="120">2 horas</option>
+                  </select>
+                </label>
+                <label>
+                  E-mail do convidado
+                  <input type="email" name="attendee_email" placeholder="cliente@email.com" autocomplete="email" />
+                </label>
+                <label class="field-wide">
+                  Observações
+                  <textarea name="notes" rows="3" placeholder="Assunto da reunião, proposta, próximos passos..."></textarea>
+                </label>
+                <label class="checkbox-field field-wide">
+                  <input type="checkbox" name="send_updates" value="1" checked />
+                  Enviar convite/notificação pelo Google Agenda
+                </label>
+                <button type="submit">Criar agendamento</button>
+              </form>
+            <?php endif; ?>
+          </section>
+        </div>
+        <?php endif; ?>
+      </div>
+
+      <?php if (!$isAgency): ?>
+      <div class="lead-tab-panel" data-lead-panel="coach" hidden>
+        <div class="coach-panel" data-coach-panel data-lead-id="<?= htmlspecialchars((string) ($lead['id'] ?? '')) ?>">
+          <div class="coach-panel-heading">
+            <div>
+              <p class="eyebrow">Orientação comercial</p>
+              <h3>Coach de vendas</h3>
+            </div>
+            <button type="button" class="integration-save" data-coach-analyze data-no-lead-toggle>✦ Analisar conversa</button>
+          </div>
+          <p class="coach-status" data-coach-status role="status"></p>
+          <div data-coach-content>
+            <?php require __DIR__ . '/partials/coach-analysis.php'; ?>
+          </div>
+        </div>
+      </div>
+      <?php endif; ?>
+
+      <?php if ($canViewTimeline): ?>
+      <div class="lead-tab-panel" data-lead-panel="historico" hidden>
+        <h3>Histórico do lead</h3>
+        <p class="lead-timeline-intro">Acompanhe as movimentações, atendimentos e automações deste contato.</p>
+        <ol class="lead-timeline" aria-label="Histórico de atividades do lead">
+          <?php foreach ($leadTimeline as $timelineEvent): ?>
+            <?php
+              $eventType = preg_replace('/[^a-z0-9_-]/i', '', (string) ($timelineEvent['event_type'] ?? 'activity')) ?: 'activity';
+              $eventDate = (string) ($timelineEvent['created_at'] ?? '');
+              $eventTimestamp = strtotime($eventDate);
+              $eventActor = trim((string) ($timelineEvent['actor_name'] ?? '')) ?: 'Sistema';
+              $eventDescription = trim((string) ($timelineEvent['description'] ?? ''));
+            ?>
+            <li class="lead-timeline-event is-<?= htmlspecialchars($eventType) ?>">
+              <span class="lead-timeline-marker" aria-hidden="true"></span>
+              <div class="lead-timeline-event-card">
+                <div class="lead-timeline-event-heading">
+                  <strong><?= htmlspecialchars((string) ($timelineEvent['title'] ?? 'Atividade registrada')) ?></strong>
+                  <time datetime="<?= htmlspecialchars($eventDate) ?>"><?= htmlspecialchars($eventTimestamp !== false ? date('d/m/Y H:i', $eventTimestamp) : $eventDate) ?></time>
+                </div>
+                <p class="lead-timeline-event-actor">por <?= htmlspecialchars($eventActor) ?></p>
+                <?php if ($eventDescription !== ''): ?>
+                  <p class="lead-timeline-event-description"><?= htmlspecialchars($eventDescription) ?></p>
+                <?php endif; ?>
+              </div>
+            </li>
+          <?php endforeach; ?>
+        </ol>
+      </div>
+      <?php endif; ?>
+    </section>
+  </div>
+</div>
