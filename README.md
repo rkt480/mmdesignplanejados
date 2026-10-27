@@ -4,7 +4,7 @@ Cópia independente do CRM da MM Design, preparada para a operação da MM Plane
 
 ## Configuração local
 
-1. Crie o banco `mm_planejados_crm` no MySQL e importe `crm/database/schema.sql`.
+1. Em hospedagens com banco já criado no painel (como Hostinger), selecione o banco no phpMyAdmin e importe `crm/database/schema-hostinger.sql`. Para desenvolvimento local, importe `crm/database/schema.sql`, que cria o banco `mm_planejados_crm`.
 2. Edite `crm/config.php` com as credenciais locais ou configure as variáveis de ambiente `MMPLANEJADOS_*` descritas em `crm/config.example.php`.
 3. Defina `MMPLANEJADOS_ADMIN_PASSWORD_HASH` com um hash criado no PHP usando `password_hash()`. Não use uma senha em texto aberto no arquivo.
 4. Abra `/crm/login.php` no servidor local.
