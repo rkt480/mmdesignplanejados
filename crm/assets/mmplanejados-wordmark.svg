@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 120" role="img" aria-label="MM Planejados">
-  <text x="280" y="69" text-anchor="middle" fill="#0b1018" font-family="Arial, Helvetica, sans-serif" font-size="53" font-weight="800" letter-spacing="1">MM PLANEJADOS</text>
-  <path d="M96 91h368" stroke="#c8a66a" stroke-width="4"/>
-  <text x="280" y="113" text-anchor="middle" fill="#687386" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="700" letter-spacing="4">CRM COMERCIAL</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 120" role="img" aria-label="MM Design Planejados">
+  <rect width="560" height="120" fill="#000"/>
+  <text x="280" y="68" text-anchor="middle" fill="#fff" font-family="Arial, Helvetica, sans-serif" font-size="51" font-weight="800" letter-spacing="-1.5" textLength="500" lengthAdjust="spacingAndGlyphs">MM DESIGN</text>
+  <text x="280" y="91" text-anchor="middle" fill="#fff" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="600" letter-spacing="4.2">PLANEJADOS</text>
 </svg>

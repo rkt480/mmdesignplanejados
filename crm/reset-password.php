@@ -68,7 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $tokenValid) {
   <body class="auth-page">
     <main class="auth-card">
       <div class="auth-brand">
-        <img src="./assets/mmplanejados-wordmark.svg" alt="MM PLANEJADOS" />
+        <img src="./assets/mmplanejados-wordmark.svg" alt="MM Design Planejados" />
       </div>
       <h1>Nova senha</h1>
       <p class="auth-description">Crie uma nova senha para acessar o CRM.</p>

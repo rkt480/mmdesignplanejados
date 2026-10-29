@@ -51,7 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <body class="auth-page">
     <main class="auth-card">
       <div class="auth-brand">
-        <img src="./assets/mmplanejados-wordmark.svg" alt="MM PLANEJADOS" />
+        <img src="./assets/mmplanejados-wordmark.svg" alt="MM Design Planejados" />
       </div>
       <h1>Recuperar senha</h1>
       <p class="auth-description">Informe o e-mail cadastrado e enviaremos um link para criar uma nova senha.</p>
