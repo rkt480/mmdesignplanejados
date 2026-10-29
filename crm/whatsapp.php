@@ -1461,7 +1461,7 @@ if ($isWaConversationFragment) {
     <main class="wa-web-shell" aria-label="Atendimento WhatsApp do CRM">
       <aside class="sidebar" aria-label="Navegação do CRM">
         <a class="brand" href="index.php" aria-label="Início" data-no-navigation-prefetch>
-          <span class="brand-mark"><img src="./assets/mmplanejados-icon.svg" alt="MM Design Planejados" /></span>
+          <span class="brand-mark"><img src="./assets/mmplanejados-icon.svg?v=20261029-mm-design" alt="MM Design Planejados" /></span>
         </a>
         <nav class="sidebar-tabs" aria-label="Atalhos do CRM">
           <a class="sidebar-kanban" href="index.php" title="Voltar para o Kanban" aria-label="Voltar para o Kanban" data-no-navigation-prefetch>
@@ -2562,7 +2562,7 @@ if ($isWaConversationFragment) {
           syncWaPushSubscription().catch(() => {});
         }, 5 * 60 * 1000);
 
-        navigator.serviceWorker.register("./sw.js?v=20260917-chat-open-v1", {
+        navigator.serviceWorker.register("./sw.js?v=20261029-mm-design", {
           scope: "./",
           updateViaCache: "none",
         }).then(() => syncWaPushSubscription()).catch(() => {});
