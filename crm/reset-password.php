@@ -61,14 +61,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $tokenValid) {
     <meta name="theme-color" content="#0b1018" />
     <meta name="apple-mobile-web-app-title" content="CRM MM Planejados" />
     <title>Nova senha | CRM MM Planejados</title>
-    <link rel="manifest" href="./manifest.webmanifest?v=20261029-mm-design" />
-    <link rel="apple-touch-icon" sizes="180x180" href="./assets/icon-180.png?v=20261029-mm-design" />
-    <link rel="stylesheet" href="./assets/crm.css?v=20260812-mobile-whatsapp-v3" />
+    <link rel="manifest" href="./manifest.webmanifest?v=20261029-logo-black" />
+    <link rel="apple-touch-icon" sizes="180x180" href="./assets/icon-180.png?v=20261029-logo-black" />
+    <link rel="stylesheet" href="./assets/crm.css?v=20261029-logo-black" />
   </head>
   <body class="auth-page">
     <main class="auth-card">
       <div class="auth-brand">
-        <img src="./assets/mmplanejados-wordmark.svg?v=20261029-mm-design" alt="MM Design Planejados" />
+        <img src="./assets/mmplanejados-wordmark.svg?v=20261029-logo-black" alt="MM Design Planejados" />
       </div>
       <h1>Nova senha</h1>
       <p class="auth-description">Crie uma nova senha para acessar o CRM.</p>

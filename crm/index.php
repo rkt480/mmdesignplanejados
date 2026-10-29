@@ -139,15 +139,15 @@ foreach ($filteredLeads as $lead) {
     <meta name="theme-color" content="#0b1018" />
     <meta name="apple-mobile-web-app-title" content="CRM MM Planejados" />
     <title>CRM MM Planejados</title>
-    <link rel="manifest" href="./manifest.webmanifest?v=20261029-mm-design" />
-    <link rel="apple-touch-icon" sizes="180x180" href="./assets/icon-180.png?v=20261029-mm-design" />
-    <link rel="stylesheet" href="./assets/crm.css?v=20261023-lead-webhook-v1" />
+    <link rel="manifest" href="./manifest.webmanifest?v=20261029-logo-black" />
+    <link rel="apple-touch-icon" sizes="180x180" href="./assets/icon-180.png?v=20261029-logo-black" />
+    <link rel="stylesheet" href="./assets/crm.css?v=20261029-logo-black" />
   </head>
   <body class="leads-page" data-crm-read-only="<?= $isAgency ? 'true' : 'false' ?>">
     <div class="app-shell">
       <aside class="sidebar" aria-label="Navegação do CRM">
         <a class="brand" href="index.php" aria-label="Início">
-          <span class="brand-mark"><img src="./assets/mmplanejados-icon.svg?v=20261029-mm-design" alt="MM Design Planejados" /></span>
+          <span class="brand-mark"><img src="./assets/mmplanejados-icon.svg?v=20261029-logo-black" alt="MM Design Planejados" /></span>
         </a>
         <nav class="sidebar-tabs" aria-label="Atalhos do CRM">
           <a class="sidebar-whatsapp" href="whatsapp.php" title="Conversas do WhatsApp" aria-label="Conversas do WhatsApp">

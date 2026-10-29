@@ -1837,7 +1837,7 @@ if ("serviceWorker" in navigator) {
     void syncPushState();
   }, 5 * 60 * 1000);
 
-  navigator.serviceWorker.register("./sw.js?v=20261029-mm-design", {
+  navigator.serviceWorker.register("./sw.js?v=20261029-logo-black", {
     scope: "./",
     updateViaCache: "none",
   })

@@ -69,13 +69,13 @@ $implementationSteps = [
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Suporte Interno | CRM</title>
-    <link rel="stylesheet" href="./assets/crm.css?v=20260813-sidebar-order-v1" />
+    <link rel="stylesheet" href="./assets/crm.css?v=20261029-logo-black" />
   </head>
   <body class="settings-page support-page">
     <div class="app-shell">
       <aside class="sidebar" aria-label="Navegação do CRM">
         <a class="brand" href="index.php" aria-label="Início">
-          <span class="brand-mark"><img src="./assets/mmplanejados-icon.svg?v=20261029-mm-design" alt="MM Design Planejados" /></span>
+          <span class="brand-mark"><img src="./assets/mmplanejados-icon.svg?v=20261029-logo-black" alt="MM Design Planejados" /></span>
         </a>
         <nav class="sidebar-tabs" aria-label="Atalhos do CRM">
           <a class="sidebar-whatsapp" href="whatsapp.php" title="Conversas do WhatsApp" aria-label="Conversas do WhatsApp">
