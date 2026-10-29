@@ -1,12 +1,12 @@
-const CACHE_NAME = "mm-planejados-crm-v3";
+const CACHE_NAME = "mm-planejados-crm-v4";
 const APP_SHELL = [
   "./assets/crm.css?v=20260813-lazy-lead-details-v1",
   "./assets/crm.js?v=20260824-push-reliability-v1",
   "./assets/crm-navigation.js?v=20260812-fast-navigation-v3",
-  "./assets/icon.svg?v=20261029-logo-black",
-  "./assets/icon-180.png?v=20261029-logo-black",
-  "./assets/icon-192.png?v=20261029-logo-black",
-  "./assets/icon-512.png?v=20261029-logo-black",
+  "./assets/icon.svg?v=20261029-logo-sharp",
+  "./assets/icon-180.png?v=20261029-logo-sharp",
+  "./assets/icon-192.png?v=20261029-logo-sharp",
+  "./assets/icon-512.png?v=20261029-logo-sharp",
 ];
 
 self.addEventListener("install", (event) => {
@@ -78,8 +78,8 @@ self.addEventListener("push", (event) => {
   const title = data.title || "MM Planejados";
   const options = {
     body: data.body || "Você tem uma nova atualização.",
-    icon: data.icon || "./assets/icon-192.png?v=20261029-logo-black",
-    badge: data.badge || "./assets/icon-192.png?v=20261029-logo-black",
+    icon: data.icon || "./assets/icon-192.png?v=20261029-logo-sharp",
+    badge: data.badge || "./assets/icon-192.png?v=20261029-logo-sharp",
     tag: data.tag || "crm-notification",
     renotify: data.renotify === true,
     data: { url: data.url || "./index.php" },

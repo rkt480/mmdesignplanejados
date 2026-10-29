@@ -48,14 +48,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta name="theme-color" content="#0b1018" />
     <meta name="apple-mobile-web-app-title" content="CRM MM Planejados" />
     <title>CRM MM Planejados</title>
-    <link rel="manifest" href="./manifest.webmanifest?v=20261029-logo-black" />
-    <link rel="apple-touch-icon" sizes="180x180" href="./assets/icon-180.png?v=20261029-logo-black" />
-    <link rel="stylesheet" href="./assets/crm.css?v=20261029-logo-black" />
+    <link rel="manifest" href="./manifest.webmanifest?v=20261029-logo-sharp" />
+    <link rel="apple-touch-icon" sizes="180x180" href="./assets/icon-180.png?v=20261029-logo-sharp" />
+    <link rel="stylesheet" href="./assets/crm.css?v=20261029-logo-sharp" />
   </head>
   <body class="auth-page">
     <main class="auth-card">
       <div class="auth-brand">
-        <img src="./assets/mmplanejados-wordmark.svg?v=20261029-logo-black" alt="MM Design Planejados" />
+        <img src="./assets/mmplanejados-wordmark.svg?v=20261029-logo-sharp" alt="MM Design Planejados" />
       </div>
       <p class="auth-description">Acesse sua conta para visualizar e gerenciar os contatos recebidos</p>
 

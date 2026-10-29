@@ -42,12 +42,12 @@ $isNew = $currentForm === null;
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="csrf-token" content="<?= htmlspecialchars(crm_csrf_token()) ?>" />
     <title>Formulários | CRM</title>
-    <link rel="stylesheet" href="./assets/crm.css?v=20261029-logo-black" />
+    <link rel="stylesheet" href="./assets/crm.css?v=20261029-logo-sharp" />
   </head>
   <body>
     <div class="app-shell">
       <aside class="sidebar" aria-label="Navegação do CRM">
-        <a class="brand" href="index.php" aria-label="Início"><span class="brand-mark"><img src="./assets/mmplanejados-icon.svg?v=20261029-logo-black" alt="MM Design Planejados" /></span></a>
+        <a class="brand" href="index.php" aria-label="Início"><span class="brand-mark"><img src="./assets/mmplanejados-icon.svg?v=20261029-logo-sharp" alt="MM Design Planejados" /></span></a>
         <nav class="sidebar-tabs" aria-label="Atalhos do CRM">
           <a class="sidebar-whatsapp" href="whatsapp.php" title="Conversas do WhatsApp" aria-label="Conversas do WhatsApp">
             <svg viewBox="0 0 24 24" aria-hidden="true">

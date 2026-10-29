@@ -93,13 +93,13 @@ $overdueLeads = crm_read_sla_overdue_leads(20);
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Comercial | CRM</title>
-    <link rel="stylesheet" href="./assets/crm.css?v=20261029-logo-black" />
+    <link rel="stylesheet" href="./assets/crm.css?v=20261029-logo-sharp" />
   </head>
   <body class="settings-page commercial-page">
     <div class="app-shell">
       <aside class="sidebar" aria-label="Navegação do CRM">
         <a class="brand" href="index.php" aria-label="Início">
-          <span class="brand-mark"><img src="./assets/mmplanejados-icon.svg?v=20261029-logo-black" alt="MM Design Planejados" /></span>
+          <span class="brand-mark"><img src="./assets/mmplanejados-icon.svg?v=20261029-logo-sharp" alt="MM Design Planejados" /></span>
         </a>
         <nav class="sidebar-tabs" aria-label="Atalhos do CRM">
           <a class="sidebar-whatsapp" href="whatsapp.php" title="Conversas do WhatsApp" aria-label="Conversas do WhatsApp">

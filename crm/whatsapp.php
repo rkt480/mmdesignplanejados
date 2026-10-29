@@ -1455,13 +1455,13 @@ if ($isWaConversationFragment) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
     <meta name="csrf-token" content="<?= htmlspecialchars($csrfToken) ?>" />
     <title>WhatsApp | MM Planejados</title>
-    <link rel="stylesheet" href="./assets/crm.css?v=20261029-logo-black" />
+    <link rel="stylesheet" href="./assets/crm.css?v=20261029-logo-sharp" />
   </head>
   <body class="whatsapp-page whatsapp-crm-page" data-wa-initial-view="<?= is_array($activeLead) ? 'thread' : 'inbox' ?>" data-wa-mobile-view="<?= is_array($activeLead) ? 'thread' : 'inbox' ?>" data-wa-active-lead-id="<?= htmlspecialchars((string) ($activeLead['id'] ?? '')) ?>" data-wa-incoming-signature="<?= htmlspecialchars(is_array($activeLead) ? crm_whatsapp_incoming_signature($activeLead) : '') ?>" data-wa-lead-feed-version="<?= htmlspecialchars($leadFeedVersion) ?>">
     <main class="wa-web-shell" aria-label="Atendimento WhatsApp do CRM">
       <aside class="sidebar" aria-label="Navegação do CRM">
         <a class="brand" href="index.php" aria-label="Início" data-no-navigation-prefetch>
-          <span class="brand-mark"><img src="./assets/mmplanejados-icon.svg?v=20261029-logo-black" alt="MM Design Planejados" /></span>
+          <span class="brand-mark"><img src="./assets/mmplanejados-icon.svg?v=20261029-logo-sharp" alt="MM Design Planejados" /></span>
         </a>
         <nav class="sidebar-tabs" aria-label="Atalhos do CRM">
           <a class="sidebar-kanban" href="index.php" title="Voltar para o Kanban" aria-label="Voltar para o Kanban" data-no-navigation-prefetch>
@@ -2562,7 +2562,7 @@ if ($isWaConversationFragment) {
           syncWaPushSubscription().catch(() => {});
         }, 5 * 60 * 1000);
 
-        navigator.serviceWorker.register("./sw.js?v=20261029-logo-black", {
+        navigator.serviceWorker.register("./sw.js?v=20261029-logo-sharp", {
           scope: "./",
           updateViaCache: "none",
         }).then(() => syncWaPushSubscription()).catch(() => {});
