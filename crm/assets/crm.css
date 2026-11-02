@@ -1557,6 +1557,13 @@ label {
   font-weight: 900;
 }
 
+.tag-entry-help {
+  color: #64748b;
+  font-size: 0.76rem;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
 input,
 select,
 textarea {
