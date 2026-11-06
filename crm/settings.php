@@ -61,36 +61,6 @@ $pilotStatusWebhookUrl = $host !== '' ? ($https ? 'https://' : 'http://') . $hos
 $leadWebhookToken = trim((string) ($settings['lead_webhook_token'] ?? ''));
 $leadWebhookAttempts = crm_lead_webhook_recent_attempts();
 $leadWebhookDiagnosticsWritable = is_writable(__DIR__ . '/data');
-$rdWebhookWhatsappTemplates = array_values(array_filter(
-    crm_read_whatsapp_templates(true),
-    static fn(array $template): bool => crm_whatsapp_template_is_sendable($template, $whatsappProvider)
-));
-$rdWebhookWhatsappTemplateId = (int) ($settings['rd_webhook_whatsapp_template_id'] ?? 0);
-$rdWebhookWhatsappTemplate = null;
-foreach ($rdWebhookWhatsappTemplates as $template) {
-    if ((int) ($template['id'] ?? 0) === $rdWebhookWhatsappTemplateId) {
-        $rdWebhookWhatsappTemplate = $template;
-        break;
-    }
-}
-$rdWebhookWhatsappMapping = is_array($settings['rd_webhook_whatsapp_variable_mapping'] ?? null)
-    ? $settings['rd_webhook_whatsapp_variable_mapping']
-    : [];
-if (is_array($rdWebhookWhatsappTemplate)) {
-    $rdWebhookWhatsappMapping = array_replace(
-        crm_whatsapp_rd_webhook_default_mapping($rdWebhookWhatsappTemplate),
-        $rdWebhookWhatsappMapping
-    );
-}
-$rdWebhookWhatsappTemplateCatalog = array_map(
-    static fn(array $template): array => [
-        'id' => (int) ($template['id'] ?? 0),
-        'name' => (string) ($template['name'] ?? ''),
-        'variables' => crm_whatsapp_template_variable_keys((string) ($template['body_text'] ?? '')),
-    ],
-    $rdWebhookWhatsappTemplates
-);
-$rdWebhookWhatsappLeadFields = crm_whatsapp_rd_webhook_lead_fields();
 $leadWebhookUrl = '';
 $configuredAppUrl = trim((string) (crm_config()['app_url'] ?? ''));
 $configuredAppUrlParts = $configuredAppUrl !== '' ? parse_url($configuredAppUrl) : false;
@@ -207,67 +177,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $settings['lead_webhook_token'] = bin2hex(random_bytes(32));
             } catch (Throwable $tokenError) {
                 $error = 'Não foi possível gerar o link do webhook. Tente novamente.';
-            }
-        }
-    }
-
-    if ($settingsSection === 'rd_webhook_whatsapp') {
-        $templateId = max(0, (int) ($_POST['rd_webhook_whatsapp_template_id'] ?? 0));
-
-        if ($templateId === 0) {
-            unset($settings['rd_webhook_whatsapp_template_id'], $settings['rd_webhook_whatsapp_variable_mapping']);
-        } else {
-            $template = crm_find_whatsapp_template($templateId);
-
-            if (!is_array($template) || !crm_whatsapp_template_is_sendable($template, crm_whatsapp_provider())) {
-                $error = 'Selecione um template ativo e aprovado para o provedor de WhatsApp configurado.';
-            } else {
-                $submittedMapping = is_array($_POST['rd_webhook_whatsapp_mapping'] ?? null)
-                    ? $_POST['rd_webhook_whatsapp_mapping']
-                    : crm_whatsapp_rd_webhook_default_mapping($template);
-                $customMapping = is_array($_POST['rd_webhook_whatsapp_custom_mapping'] ?? null)
-                    ? $_POST['rd_webhook_whatsapp_custom_mapping']
-                    : [];
-                $allowedFields = crm_whatsapp_rd_webhook_lead_fields();
-                $mapping = [];
-
-                foreach (crm_whatsapp_template_variable_keys((string) ($template['body_text'] ?? '')) as $variable) {
-                    $source = trim((string) ($submittedMapping[$variable] ?? ''));
-
-                    if ($source === '__custom_answer__') {
-                        $answerKey = crm_whatsapp_rd_webhook_normalize_answer_key(
-                            trim((string) ($customMapping[$variable] ?? ''))
-                        );
-
-                        if ($answerKey === '' || strlen($answerKey) > 120) {
-                            $error = 'Informe o identificador da resposta personalizada para {{' . $variable . '}}.';
-                            break;
-                        }
-
-                        $source = 'answer:' . $answerKey;
-                    }
-
-                    if (!array_key_exists($source, $allowedFields) && !str_starts_with($source, 'answer:')) {
-                        $error = 'Mapeie a variável {{' . $variable . '}} para um campo do lead.';
-                        break;
-                    }
-
-                    if (str_starts_with($source, 'answer:')) {
-                        $answerKey = crm_whatsapp_rd_webhook_normalize_answer_key(substr($source, 7));
-                        if ($answerKey === '' || strlen($answerKey) > 120) {
-                            $error = 'Selecione uma resposta de formulário válida para {{' . $variable . '}}.';
-                            break;
-                        }
-                        $source = 'answer:' . $answerKey;
-                    }
-
-                    $mapping[$variable] = $source;
-                }
-
-                if ($error === '') {
-                    $settings['rd_webhook_whatsapp_template_id'] = $templateId;
-                    $settings['rd_webhook_whatsapp_variable_mapping'] = $mapping;
-                }
             }
         }
     }
@@ -743,50 +652,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
               <section class="automation-card integration-card">
                 <header class="integration-card-header">
-                  <span class="integration-icon" aria-hidden="true">↗</span>
-                  <div>
-                    <p class="integration-kicker">RD Station · WhatsApp</p>
-                    <h2>Template automático</h2>
-                  </div>
-                  <span class="integration-status <?= $rdWebhookWhatsappTemplateId > 0 && is_array($rdWebhookWhatsappTemplate) ? 'is-active' : '' ?>">
-                    <?= $rdWebhookWhatsappTemplateId > 0 && is_array($rdWebhookWhatsappTemplate) ? 'Ativo' : 'Inativo' ?>
-                  </span>
-                </header>
-                <p class="integration-description">Envie um template aprovado quando o webhook receber um novo cadastro ou uma nova conversão do RD Station. Cada conversão distinta do mesmo contato gera um envio; reentregas do mesmo evento são ignoradas.</p>
-
-                <form class="flow-form" method="post">
-                  <input type="hidden" name="_csrf_token" value="<?= htmlspecialchars(crm_csrf_token()) ?>" />
-                  <input type="hidden" name="settings_section" value="rd_webhook_whatsapp" />
-                  <label>
-                    Template aprovado
-                    <select name="rd_webhook_whatsapp_template_id" data-rd-whatsapp-template>
-                      <option value="0" <?= $rdWebhookWhatsappTemplateId === 0 ? 'selected' : '' ?>>Não enviar automaticamente</option>
-                      <?php foreach ($rdWebhookWhatsappTemplates as $template): ?>
-                        <option value="<?= (int) $template['id'] ?>" <?= (int) $template['id'] === $rdWebhookWhatsappTemplateId ? 'selected' : '' ?>><?= htmlspecialchars((string) ($template['name'] ?? '')) ?></option>
-                      <?php endforeach; ?>
-                    </select>
-                  </label>
-                  <?php if ($rdWebhookWhatsappTemplates === []): ?>
-                    <small class="settings-help">Não há templates ativos e aprovados para o provedor atual (<?= htmlspecialchars(crm_whatsapp_provider_label($whatsappProvider)) ?>). Aprove um template na área Templates para habilitar o envio.</small>
-                  <?php else: ?>
-                    <small class="settings-help">Provedor atual: <?= htmlspecialchars(crm_whatsapp_provider_label($whatsappProvider)) ?>. As variáveis podem usar campos do lead ou uma resposta personalizada salva pelo RD Station.</small>
-                  <?php endif; ?>
-                  <?php if (!$whatsappConfigured): ?>
-                    <small class="settings-help">Configure também as credenciais do provedor em WhatsApp para que o envio automático seja processado.</small>
-                  <?php endif; ?>
-                  <?php if ($rdWebhookWhatsappTemplateId > 0 && !is_array($rdWebhookWhatsappTemplate)): ?>
-                    <small class="settings-help">O template salvo não está ativo ou aprovado para o provedor atual. Selecione outro template para retomar os envios.</small>
-                  <?php endif; ?>
-                  <div data-rd-whatsapp-template-variables></div>
-                  <button class="integration-save" type="submit">
-                    <span aria-hidden="true">✓</span>
-                    Salvar template automático
-                  </button>
-                </form>
-              </section>
-
-              <section class="automation-card integration-card">
-                <header class="integration-card-header">
                   <span class="integration-icon" aria-hidden="true">↔</span>
                   <div>
                     <p class="integration-kicker">Atividades comerciais</p>
@@ -1143,12 +1008,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       </div>
     </div>
     <script src="./assets/crm-navigation.js?v=20260812-fast-navigation-v3"></script>
-    <script>
-      window.rdWebhookWhatsappTemplateCatalog = <?= json_encode($rdWebhookWhatsappTemplateCatalog, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
-      window.rdWebhookWhatsappLeadFields = <?= json_encode($rdWebhookWhatsappLeadFields, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
-      window.rdWebhookWhatsappVariableMapping = <?= json_encode($rdWebhookWhatsappMapping, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
-    </script>
-    <script src="./assets/rd-webhook-whatsapp-settings.js?v=20261106-v1"></script>
     <script>
       document.querySelector('[data-copy-lead-webhook]')?.addEventListener('click', async (event) => {
         const button = event.currentTarget;
