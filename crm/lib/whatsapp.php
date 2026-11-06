@@ -442,7 +442,12 @@ function crm_whatsapp_send_rd_webhook_template(array $lead, string $eventKey, ?a
     }
 
     $messageId = crm_whatsapp_response_message_id($result);
-    $description = 'Template "' . $templateName . '" enviado automaticamente via ' . $providerLabel . ' em ' . date('d/m/Y H:i:s') . '.';
+    $renderedBody = crm_whatsapp_template_render(
+        (string) ($template['body_text'] ?? ''),
+        $variables,
+        $lead
+    );
+    $description = 'Template "' . $templateName . '" enviado automaticamente via ' . $providerLabel . ' em ' . date('d/m/Y H:i:s') . ":\n" . $renderedBody;
 
     if ($messageId !== '') {
         $description .= "\nCRM message ID: " . $messageId;
@@ -455,7 +460,7 @@ function crm_whatsapp_send_rd_webhook_template(array $lead, string $eventKey, ?a
             $leadId,
             'whatsapp_template_sent',
             'Template automático enviado pelo WhatsApp',
-            'Template ' . $templateName . ' enviado via ' . $providerLabel . '.',
+            'Template ' . $templateName . ' enviado via ' . $providerLabel . ".\nTexto enviado:\n" . $renderedBody,
             'Sistema',
             null,
             ['rd_event_key' => $eventKey, 'template_id' => $templateId, 'provider' => $provider]
