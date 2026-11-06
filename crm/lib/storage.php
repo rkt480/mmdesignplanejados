@@ -2438,13 +2438,77 @@ function crm_reactivate_lead_from_webhook(array $lead, array $payload, string $s
     $page = trim((string) ($payload['page'] ?? ''));
 
     if ($newAnswers !== []) {
+        $normalizeAnswerKey = static function (string $value): string {
+            if (function_exists('iconv')) {
+                $asciiValue = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $value);
+                if (is_string($asciiValue)) {
+                    $value = $asciiValue;
+                }
+            }
+
+            return strtolower((string) preg_replace('/[^a-zA-Z0-9]+/', '', $value));
+        };
+        $getAnswerKeys = static function (array $answer) use ($normalizeAnswerKey): array {
+            $questionId = $normalizeAnswerKey((string) ($answer['question_id'] ?? ''));
+            $question = $normalizeAnswerKey((string) ($answer['question'] ?? ''));
+
+            if ($questionId === 'webhookreentry') {
+                return [];
+            }
+
+            $keys = [];
+            if ($questionId !== '' && preg_match('/^(?:answer|response|field)?\d+$/', $questionId) !== 1) {
+                $keys[] = 'id:' . $questionId;
+            }
+            if ($question !== '') {
+                $keys[] = 'question:' . $question;
+            }
+
+            return $keys;
+        };
+        $mergedAnswers = [];
+        $answerIndexes = [];
+        $mergeAnswer = static function (mixed $answer) use (&$mergedAnswers, &$answerIndexes, $getAnswerKeys): void {
+            if (!is_array($answer)) {
+                $mergedAnswers[] = $answer;
+                return;
+            }
+
+            $keys = $getAnswerKeys($answer);
+            $position = null;
+            foreach ($keys as $key) {
+                if (isset($answerIndexes[$key])) {
+                    $position = $answerIndexes[$key];
+                    break;
+                }
+            }
+
+            if ($position === null) {
+                $position = count($mergedAnswers);
+                $mergedAnswers[] = $answer;
+            } else {
+                $mergedAnswers[$position] = $answer;
+            }
+
+            foreach ($keys as $key) {
+                $answerIndexes[$key] = $position;
+            }
+        };
+        foreach ($storedAnswers as $answer) {
+            $mergeAnswer($answer);
+        }
+        foreach ($newAnswers as $answer) {
+            $mergeAnswer($answer);
+        }
+
+        $storedAnswers = $mergedAnswers;
+        $reentryAnswer = date('d/m/Y H:i') . ($page !== '' ? ' · ' . $page : '');
         $storedAnswers[] = [
             'question_id' => 'webhook_reentry',
             'question' => 'Nova inscrição (' . $sourceLabel . ')',
-            'value' => date('d/m/Y H:i') . ($page !== '' ? ' · ' . $page : ''),
-            'answer' => date('d/m/Y H:i') . ($page !== '' ? ' · ' . $page : ''),
+            'value' => $reentryAnswer,
+            'answer' => $reentryAnswer,
         ];
-        array_push($storedAnswers, ...$newAnswers);
     }
 
     $fields = [

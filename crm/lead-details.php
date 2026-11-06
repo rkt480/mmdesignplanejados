@@ -29,9 +29,10 @@ $hiddenLeadAnswerKeys = array_fill_keys([
   'conversiondomain',
   'conversionidentifier',
 ], true);
+$seenLeadAnswerKeys = [];
 $leadFormAnswers = array_values(array_filter(
-  crm_decode_lead_form_answers($lead),
-  static function (mixed $answer) use (&$hasVisibleEmail, $normalizeLeadAnswerKey, $hiddenLeadAnswerKeys): bool {
+  array_reverse(crm_decode_lead_form_answers($lead)),
+  static function (mixed $answer) use (&$hasVisibleEmail, &$seenLeadAnswerKeys, $normalizeLeadAnswerKey, $hiddenLeadAnswerKeys): bool {
     if (!is_array($answer)) {
       return false;
     }
@@ -49,6 +50,16 @@ $leadFormAnswers = array_values(array_filter(
       return false;
     }
 
+    $answerKeys = array_filter([
+      $normalizeLeadAnswerKey($questionId) !== '' ? 'id:' . $normalizeLeadAnswerKey($questionId) : '',
+      $normalizeLeadAnswerKey($question) !== '' ? 'question:' . $normalizeLeadAnswerKey($question) : '',
+    ]);
+    foreach ($answerKeys as $key) {
+      if (isset($seenLeadAnswerKeys[$key])) {
+        return false;
+      }
+    }
+
     if (filter_var($value, FILTER_VALIDATE_EMAIL) !== false) {
       if ($hasVisibleEmail) {
         return false;
@@ -56,9 +67,14 @@ $leadFormAnswers = array_values(array_filter(
       $hasVisibleEmail = true;
     }
 
+    foreach ($answerKeys as $key) {
+      $seenLeadAnswerKeys[$key] = true;
+    }
+
     return true;
   }
 ));
+$leadFormAnswers = array_reverse($leadFormAnswers);
 $leadSubmittedFields = [
   'Empresa' => trim((string) ($lead['company'] ?? '')),
   'Segmento' => trim((string) ($lead['segment'] ?? '')),

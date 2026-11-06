@@ -527,6 +527,20 @@ foreach (['cpf', 'company', 'segment', 'advertises', 'message', 'utm_source', 'u
     $leadPayload[$field] = lead_webhook_truncate((string) ($values[$field] ?? ''), $lengthLimits[$field]);
 }
 
+if ($isRdStationWebhook) {
+    $rdTags = array_values(array_filter(
+        crm_parse_tags((string) ($leadPayload['tags'] ?? '')),
+        static fn(string $tag): bool => strtolower(trim($tag)) !== 'rd-station'
+    ));
+
+    while ($rdTags !== [] && strlen(implode(', ', $rdTags)) + strlen(', rd-station') > $lengthLimits['tags']) {
+        array_pop($rdTags);
+    }
+
+    $rdTags[] = 'rd-station';
+    $leadPayload['tags'] = implode(', ', $rdTags);
+}
+
 $customAnswers = lead_webhook_response_answers($payload['answers'] ?? $payload['form_answers'] ?? []);
 if ($isRdStationWebhook) {
     $customAnswers = array_values(array_filter(
