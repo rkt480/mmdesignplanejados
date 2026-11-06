@@ -9,9 +9,29 @@ crm_require_login();
 $leadTags = $leadTags ?? crm_decode_lead_tags($lead);
 $visibleLeadTags = $visibleLeadTags ?? lead_visible_tags($lead, $leadTags);
 $hasVisibleEmail = false;
+$normalizeLeadAnswerKey = static function (string $value): string {
+  $asciiValue = function_exists('iconv')
+    ? iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $value)
+    : $value;
+
+  return strtolower((string) preg_replace('/[^a-zA-Z0-9]+/', '', $asciiValue !== false ? $asciiValue : $value));
+};
+$hiddenLeadAnswerKeys = array_fill_keys([
+  'mensagemounecessidade',
+  'novainscricaordstation',
+  'webhookreentry',
+  'origemrdstation',
+  'rdorigin',
+  'eventodeconversaordstation',
+  'rdeventidentifier',
+  'identificador',
+  'conversionurl',
+  'conversiondomain',
+  'conversionidentifier',
+], true);
 $leadFormAnswers = array_values(array_filter(
   crm_decode_lead_form_answers($lead),
-  static function (mixed $answer) use (&$hasVisibleEmail): bool {
+  static function (mixed $answer) use (&$hasVisibleEmail, $normalizeLeadAnswerKey, $hiddenLeadAnswerKeys): bool {
     if (!is_array($answer)) {
       return false;
     }
@@ -19,6 +39,10 @@ $leadFormAnswers = array_values(array_filter(
     $question = (string) ($answer['question'] ?? '');
     $questionId = (string) ($answer['question_id'] ?? '');
     $value = trim((string) ($answer['answer'] ?? $answer['value'] ?? ''));
+    if (isset($hiddenLeadAnswerKeys[$normalizeLeadAnswerKey($question)])
+      || isset($hiddenLeadAnswerKeys[$normalizeLeadAnswerKey($questionId)])) {
+      return false;
+    }
 
     if ($value === '' || crm_is_technical_lead_answer($questionId, $value)
       || crm_is_technical_lead_answer($question, $value)) {
@@ -39,7 +63,6 @@ $leadSubmittedFields = [
   'Empresa' => trim((string) ($lead['company'] ?? '')),
   'Segmento' => trim((string) ($lead['segment'] ?? '')),
   'Como divulga/controla os leads' => trim((string) ($lead['advertises'] ?? '')),
-  'Mensagem ou necessidade' => trim((string) ($lead['message'] ?? '')),
 ];
 if ($leadSubmittedFields['Empresa'] === 'Não informado') {
   $leadSubmittedFields['Empresa'] = '';
@@ -75,7 +98,7 @@ foreach ($leadSubmittedFields as $label => $value) {
   }
 }
 $leadDisplayAnswers = array_merge($leadDisplayAnswers, $otherLeadAnswers);
-$hasLeadSubmissionData = count(array_filter($leadSubmittedFields, static fn(string $value): bool => $value !== '')) > 0 || count($leadFormAnswers) > 0;
+$hasLeadSubmissionData = count($leadDisplayAnswers) > 0;
 ?>
 <div class="lead-modal-card">
   <header class="lead-modal-header">
