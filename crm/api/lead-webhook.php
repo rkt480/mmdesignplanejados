@@ -17,6 +17,7 @@ require_once dirname(__DIR__) . '/lib/storage.php';
 require_once dirname(__DIR__) . '/lib/email.php';
 require_once dirname(__DIR__) . '/lib/meta-capi.php';
 require_once dirname(__DIR__) . '/lib/security.php';
+require_once dirname(__DIR__) . '/lib/whatsapp.php';
 
 header('Content-Type: application/json; charset=utf-8');
 crm_send_security_headers();
@@ -263,6 +264,8 @@ $isRdStationWebhook = $rdLegacyLead !== null
     || is_array($payload['contact'] ?? null)
     || ($rdEntityType === 'CONTACT'
         && in_array($rdEventType, ['WEBHOOK.CONVERTED', 'WEBHOOK.MARKED_OPPORTUNITY'], true));
+$isRdConversionEvent = ($rdLegacyLead !== null && !str_contains($rdEventType, 'OPPORTUNITY'))
+    || ($rdEntityType === 'CONTACT' && $rdEventType === 'WEBHOOK.CONVERTED');
 
 $rdEventKey = '';
 $rdContactKey = '';
@@ -625,6 +628,24 @@ lead_webhook_respond_before_side_effects([
 ]);
 
 if (($leadResult['created'] ?? false) === true || ($leadResult['reactivated'] ?? false) === true) {
+    if ($isRdConversionEvent && $rdEventKey !== '') {
+        // A unique RD event row is committed before this side effect. A
+        // redelivery returns neither created nor reactivated, while a new
+        // conversion for this contact has its own event key and sends again.
+        try {
+            $whatsappResult = crm_whatsapp_send_rd_webhook_template(
+                $lead,
+                $rdEventKey,
+                is_array($leadPayload['form_answers'] ?? null) ? $leadPayload['form_answers'] : []
+            );
+            if (($whatsappResult['ok'] ?? false) !== true && ($whatsappResult['skipped'] ?? false) !== true) {
+                error_log('Erro no template automático do RD Station para Lead ' . (string) ($lead['id'] ?? '') . ': ' . (string) ($whatsappResult['error'] ?? 'Erro desconhecido.'));
+            }
+        } catch (Throwable $error) {
+            error_log('Erro no template automático do RD Station para Lead ' . (string) ($lead['id'] ?? '') . ': ' . $error->getMessage());
+        }
+    }
+
     try {
         crm_notify_created_lead_push($lead);
     } catch (Throwable $error) {
