@@ -1903,6 +1903,19 @@ function pilot_status_extract_single_incoming_message(array $payload): array
         }
     }
 
+    $replyContext = meta_whatsapp_extract_reply_context($payload);
+    $replyCorrelationId = trim(pilot_status_first_payload_value($payload, [
+        ['correlationId'],
+        ['correlation_id'],
+        ['data', 'correlationId'],
+        ['data', 'correlation_id'],
+        ['message', 'correlationId'],
+        ['data', 'message', 'correlationId'],
+    ]));
+    if ($replyContext !== [] && $replyCorrelationId !== '') {
+        $replyContext['correlation_id'] = $replyCorrelationId;
+    }
+
     return [
         'id' => pilot_status_first_payload_value($payload, [['id'], ['messageId'], ['message_id'], ['key', 'id'], ['message', 'id'], ['data', 'id'], ['data', 'messageId'], ['data', 'message_id'], ['data', 'key', 'id'], ['data', 'message', 'id'], ['payload', 'id'], ['payload', 'key', 'id'], ['payload', 'message', 'id']]),
         'timestamp' => pilot_status_first_payload_value($payload, [['timestamp'], ['messageTimestamp'], ['message_timestamp'], ['message', 'timestamp'], ['data', 'timestamp'], ['data', 'messageTimestamp'], ['data', 'message_timestamp'], ['data', 'message', 'timestamp'], ['data', 'message', 'messageTimestamp']]),
@@ -1913,7 +1926,7 @@ function pilot_status_extract_single_incoming_message(array $payload): array
         'text' => pilot_status_extract_text($payload),
         'type' => pilot_status_extract_message_type($payload),
         'media' => pilot_status_extract_incoming_media($payload),
-        'reply_context' => meta_whatsapp_extract_reply_context($payload),
+        'reply_context' => $replyContext,
         'name' => pilot_status_extract_name($payload),
         'profile_picture_url' => pilot_status_extract_profile_picture_url($payload),
         'attribution' => crm_extract_marketing_attribution($payload),

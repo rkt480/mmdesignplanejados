@@ -22,7 +22,7 @@ function crm_whatsapp_reply_context_note(array $context): string
 {
     $stored = [];
 
-    foreach (['id', 'text', 'type', 'url'] as $key) {
+    foreach (['id', 'correlation_id', 'text', 'type', 'url'] as $key) {
         $value = trim((string) ($context[$key] ?? ''));
 
         if ($value !== '') {

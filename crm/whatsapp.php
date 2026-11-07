@@ -459,7 +459,7 @@ function whatsapp_page_extract_reply_context_from_text(string &$text): array
 
     $normalized = [];
 
-    foreach (['id', 'text', 'type', 'url'] as $key) {
+    foreach (['id', 'correlation_id', 'text', 'type', 'url'] as $key) {
         $value = trim((string) ($context[$key] ?? ''));
 
         if ($value !== '') {
@@ -635,9 +635,17 @@ function whatsapp_page_attach_reply_contexts(array &$messages): void
 
         $quoted = null;
         $replyId = trim((string) ($replyContext['id'] ?? ''));
+        $replyCorrelationId = trim((string) ($replyContext['correlation_id'] ?? ''));
 
         if ($replyId !== '') {
             $quoted = whatsapp_page_find_message_by_ids($messages, [$replyId]);
+        }
+
+        // Pilot Status can echo the correlation ID of the outbound message
+        // being replied to. Use it only after the WhatsApp context.id failed
+        // an exact match; never combine candidates or guess from the thread.
+        if (!is_array($quoted) && $replyCorrelationId !== '') {
+            $quoted = whatsapp_page_find_message_by_ids($messages, [$replyCorrelationId]);
         }
 
         if (!is_array($quoted)) {
