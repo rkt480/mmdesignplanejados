@@ -77,7 +77,7 @@ function crm_db_reconnect(): PDO
 
 function crm_schema_version(): string
 {
-    return '20261107.1';
+    return '20261107.2';
 }
 
 function crm_schema_version_is_current(PDO $pdo): bool
@@ -210,6 +210,7 @@ function crm_ensure_crm_schema(PDO $pdo): void
             id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
             lead_id VARCHAR(32) NOT NULL,
             token CHAR(64) NOT NULL UNIQUE,
+            parent_upload_id BIGINT UNSIGNED NULL,
             created_by INT NOT NULL,
             status VARCHAR(20) NOT NULL DEFAULT "open",
             original_name VARCHAR(255) NULL,
@@ -224,9 +225,16 @@ function crm_ensure_crm_schema(PDO $pdo): void
             delete_at DATETIME NULL,
             deleted_at DATETIME NULL,
             INDEX idx_project_uploads_lead (lead_id, created_at),
+            INDEX idx_project_uploads_parent (parent_upload_id, status),
             INDEX idx_project_uploads_expiry (status, delete_at, link_expires_at)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
     );
+    if (!crm_column_exists($pdo, 'project_uploads', 'parent_upload_id')) {
+        $pdo->exec('ALTER TABLE project_uploads ADD COLUMN parent_upload_id BIGINT UNSIGNED NULL AFTER token');
+    }
+    if (!crm_index_exists($pdo, 'project_uploads', 'idx_project_uploads_parent')) {
+        $pdo->exec('ALTER TABLE project_uploads ADD INDEX idx_project_uploads_parent (parent_upload_id, status)');
+    }
 
     $pdo->exec(
         'CREATE TABLE IF NOT EXISTS whatsapp_templates (

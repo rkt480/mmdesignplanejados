@@ -81,6 +81,7 @@ CREATE TABLE IF NOT EXISTS project_uploads (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   lead_id VARCHAR(32) NOT NULL,
   token CHAR(64) NOT NULL UNIQUE,
+  parent_upload_id BIGINT UNSIGNED NULL,
   created_by INT NOT NULL,
   status VARCHAR(20) NOT NULL DEFAULT 'open',
   original_name VARCHAR(255) NULL,
@@ -95,6 +96,7 @@ CREATE TABLE IF NOT EXISTS project_uploads (
   delete_at DATETIME NULL,
   deleted_at DATETIME NULL,
   INDEX idx_project_uploads_lead (lead_id, created_at),
+  INDEX idx_project_uploads_parent (parent_upload_id, status),
   INDEX idx_project_uploads_expiry (status, delete_at, link_expires_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

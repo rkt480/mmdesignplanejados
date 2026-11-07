@@ -40,7 +40,8 @@ if (empty($upload['first_download_at'])) {
 }
 
 $name = trim((string) $upload['original_name']);
-$name = preg_replace('/[\x00-\x1F\x7F"\\]/u', '_', $name) ?? 'projeto.skp';
+$name = str_replace(['"', '\\'], '_', $name);
+$name = preg_replace('/[\x00-\x1F\x7F]/u', '_', $name) ?: 'projeto.skp';
 $fallback = preg_replace('/[^A-Za-z0-9._-]/', '_', $name) ?: 'projeto.skp';
 header('Content-Type: application/octet-stream');
 header('X-Content-Type-Options: nosniff');

@@ -81,7 +81,10 @@ function crm_project_upload_find_token(string $token): ?array
 
 function crm_project_uploads_for_lead(string $leadId): array
 {
-    $stmt = crm_db()->prepare('SELECT * FROM project_uploads WHERE lead_id = :lead_id ORDER BY created_at DESC LIMIT 30');
+    $stmt = crm_db()->prepare(
+        'SELECT * FROM project_uploads WHERE lead_id = :lead_id
+         ORDER BY (parent_upload_id IS NULL AND link_expires_at > NOW()) DESC, created_at DESC LIMIT 100'
+    );
     $stmt->execute(['lead_id' => $leadId]);
     return $stmt->fetchAll();
 }

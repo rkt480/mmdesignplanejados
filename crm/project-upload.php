@@ -9,7 +9,7 @@ header('Cache-Control: no-store');
 $token = (string) ($_GET['token'] ?? $_GET['t'] ?? '');
 $upload = crm_project_upload_find_token($token);
 $available = is_array($upload)
-    && in_array((string) $upload['status'], ['open', 'uploading'], true)
+    && $upload['parent_upload_id'] === null
     && (string) $upload['link_expires_at'] > date('Y-m-d H:i:s');
 ?>
 <!doctype html>
@@ -41,15 +41,15 @@ $available = is_array($upload)
   <div class="brand">MM Design Planejados</div>
   <?php if (!$available): ?>
     <h1>Link indisponível</h1>
-    <p>Este link expirou ou já foi utilizado. Peça um novo link à equipe que está atendendo você.</p>
+    <p>Este link expirou. Peça um novo link à equipe que está atendendo você.</p>
   <?php else: ?>
     <h1>Envie seu projeto</h1>
-    <p>Selecione o arquivo do projeto. Ao concluir, ele ficará disponível para a equipe no seu atendimento.</p>
+    <p>Selecione um ou vários arquivos. Você também poderá voltar a este link e enviar mais materiais enquanto ele estiver válido.</p>
     <form id="upload-form">
-      <label for="project-file">Arquivo do projeto</label>
-      <input id="project-file" type="file" accept=".skp,.zip,.pdf,.dwg,.dxf" required />
-      <small>Formatos: SKP, ZIP, PDF, DWG ou DXF. Tamanho máximo: 1 GB. Mantenha esta página aberta até a confirmação.</small>
-      <button type="submit">Enviar projeto</button>
+      <label for="project-file">Arquivos do projeto</label>
+      <input id="project-file" type="file" accept=".skp,.zip,.pdf,.dwg,.dxf" multiple required />
+      <small>Formatos: SKP, ZIP, PDF, DWG ou DXF. Até 1 GB por arquivo. Mantenha esta página aberta até a confirmação.</small>
+      <button type="submit">Enviar arquivos</button>
       <progress id="progress" max="100" value="0" hidden></progress>
       <div id="result" role="status" aria-live="polite"></div>
     </form>
@@ -60,9 +60,9 @@ $available = is_array($upload)
       const button = form.querySelector('button');
       const progress = document.getElementById('progress');
       const result = document.getElementById('result');
-      const endpoint = (action, offset) => `api/project-upload.php?token=${encodeURIComponent(token)}&action=${action}${offset === undefined ? '' : `&offset=${offset}`}`;
-      async function request(action, body, offset) {
-        const response = await fetch(endpoint(action, offset), {
+      const endpoint = (action, uploadId, offset) => `api/project-upload.php?token=${encodeURIComponent(token)}&action=${action}${uploadId === undefined ? '' : `&upload_id=${uploadId}`}${offset === undefined ? '' : `&offset=${offset}`}`;
+      async function request(action, body, uploadId, offset) {
+        const response = await fetch(endpoint(action, uploadId, offset), {
           method: 'POST', body,
           headers: action === 'start' ? { 'Content-Type': 'application/json' } : {},
           cache: 'no-store'
@@ -73,11 +73,11 @@ $available = is_array($upload)
       }
       form.addEventListener('submit', async (event) => {
         event.preventDefault();
-        const file = input.files[0];
-        if (!file) return;
-        if (file.size > 1024 * 1024 * 1024) {
+        const files = Array.from(input.files);
+        if (!files.length) return;
+        if (files.some((file) => file.size > 1024 * 1024 * 1024 || file.size < 1)) {
           result.dataset.error = '';
-          result.textContent = 'O arquivo deve ter até 1 GB.';
+          result.textContent = 'Cada arquivo deve ter entre 1 byte e 1 GB.';
           return;
         }
         button.disabled = true;
@@ -86,34 +86,40 @@ $available = is_array($upload)
         result.removeAttribute('data-error');
         result.textContent = 'Preparando o envio...';
         try {
-          const started = await request('start', JSON.stringify({ name: file.name, size: file.size }));
-          let offset = Number(started.received) || 0;
-          const chunkSize = 2 * 1024 * 1024;
-          while (offset < file.size) {
-            const chunk = file.slice(offset, Math.min(offset + chunkSize, file.size));
-            let sent = false;
-            for (let attempt = 0; attempt < 3 && !sent; attempt++) {
-              try {
-                const response = await request('chunk', chunk, offset);
-                offset = Number(response.received);
-                sent = true;
-              } catch (error) {
-                if (attempt === 2) throw error;
-                await new Promise((resolve) => setTimeout(resolve, 700 * (attempt + 1)));
+          for (let index = 0; index < files.length; index++) {
+            const file = files[index];
+            result.textContent = `Preparando ${index + 1} de ${files.length}: ${file.name}`;
+            const started = await request('start', JSON.stringify({ name: file.name, size: file.size }));
+            const uploadId = Number(started.upload_id);
+            let offset = Number(started.received) || 0;
+            const chunkSize = 2 * 1024 * 1024;
+            while (offset < file.size) {
+              const chunk = file.slice(offset, Math.min(offset + chunkSize, file.size));
+              let sent = false;
+              for (let attempt = 0; attempt < 3 && !sent; attempt++) {
+                try {
+                  const response = await request('chunk', chunk, uploadId, offset);
+                  offset = Number(response.received);
+                  sent = true;
+                } catch (error) {
+                  if (attempt === 2) throw error;
+                  await new Promise((resolve) => setTimeout(resolve, 700 * (attempt + 1)));
+                }
               }
+              progress.value = Math.round((index + offset / file.size) / files.length * 100);
+              result.textContent = `Enviando ${index + 1} de ${files.length}: ${file.name} (${Math.round(offset / file.size * 100)}%)`;
             }
-            progress.value = Math.round(offset / file.size * 100);
-            result.textContent = `Enviando: ${progress.value}%`;
+            await request('finish', undefined, uploadId);
           }
-          const finished = await request('finish');
           result.dataset.success = '';
-          result.textContent = finished.message;
+          result.textContent = `${files.length} arquivo${files.length === 1 ? '' : 's'} enviado${files.length === 1 ? '' : 's'} com sucesso. Você pode selecionar mais arquivos neste mesmo link.`;
           form.reset();
           progress.value = 100;
-          button.hidden = true;
+          button.disabled = false;
+          input.disabled = false;
         } catch (error) {
           result.dataset.error = '';
-          result.textContent = `${error.message} Você pode tentar novamente com o mesmo arquivo.`;
+          result.textContent = `${error.message} Selecione novamente os arquivos pendentes para continuar.`;
           button.disabled = false;
           input.disabled = false;
         }
