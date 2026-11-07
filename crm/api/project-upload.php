@@ -21,7 +21,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
 
 $token = (string) ($_GET['token'] ?? '');
 $upload = crm_project_upload_find_token($token);
-if ($upload === null || $upload['parent_upload_id'] !== null) {
+if ($upload === null || !crm_project_upload_is_current_link($upload)) {
     project_upload_reply(404, ['ok' => false, 'error' => 'Link inválido.']);
 }
 

@@ -21,7 +21,7 @@ Os bancos local e da Hostinger são independentes; leads e demais dados de teste
 
 ## Projetos grandes enviados pelo cliente
 
-Na coluna de informações do cliente, o vendedor clica em **Gerar link de envio** e compartilha o endereço pelo WhatsApp. O cliente pode selecionar vários arquivos SKP, ZIP, PDF, DWG ou DXF de até 1 GB cada e voltar ao mesmo link para enviar mais materiais durante sua validade de 7 dias. O envio ocorre em blocos de 2 MB e pode ser retomado com o mesmo arquivo. Cada arquivo aparece separadamente no card do respectivo cliente para download por usuários com acesso ao lead. Novos links usam o caminho curto `crm/p.php?t=...`; os links antigos também continuam válidos.
+Na coluna de informações do cliente, o vendedor clica em **Gerar link de envio** e compartilha o endereço pelo WhatsApp. Há apenas um link ativo por cliente; se já existir um, o CRM o reutiliza e os links anteriores deixam de aceitar envios. O cliente pode selecionar vários arquivos SKP, ZIP, PDF, DWG ou DXF de até 1 GB cada e voltar ao mesmo link para enviar mais materiais durante sua validade de 7 dias. O envio ocorre em blocos de 2 MB e pode ser retomado com o mesmo arquivo. Cada arquivo aparece separadamente no card do respectivo cliente para download por usuários com acesso ao lead. Novos links usam o caminho curto `crm/p.php?t=...`.
 
 Os arquivos ficam em `crm/data/project-uploads/`, protegidos pela regra `crm/data/.htaccess`, e não entram no Git. Confirme que a hospedagem permite gravar nessa pasta e tem espaço disponível. O banco cria a tabela `project_uploads` automaticamente no primeiro acesso após o deploy.
 

@@ -45,24 +45,65 @@ function crm_project_upload_link(array $upload): string
     return crm_project_upload_app_url() . '/p.php?t=' . rawurlencode(substr((string) $upload['token'], 0, 24));
 }
 
+function crm_project_upload_current_link(string $leadId): ?array
+{
+    $stmt = crm_db()->prepare(
+        'SELECT * FROM project_uploads
+         WHERE lead_id = :lead_id AND parent_upload_id IS NULL AND link_expires_at > :now
+         ORDER BY created_at DESC, id DESC LIMIT 1'
+    );
+    $stmt->execute(['lead_id' => $leadId, 'now' => date('Y-m-d H:i:s')]);
+    $row = $stmt->fetch();
+    return is_array($row) ? $row : null;
+}
+
+function crm_project_upload_is_current_link(array $upload): bool
+{
+    if ($upload['parent_upload_id'] !== null) {
+        return false;
+    }
+    $current = crm_project_upload_current_link((string) $upload['lead_id']);
+    return $current !== null && (int) $current['id'] === (int) $upload['id'];
+}
+
 function crm_project_upload_create(string $leadId, int $userId): array
 {
-    $token = rtrim(strtr(base64_encode(random_bytes(18)), '+/', '-_'), '=');
-    $now = date('Y-m-d H:i:s');
-    $expires = date('Y-m-d H:i:s', time() + 7 * 86400);
-    $stmt = crm_db()->prepare(
-        'INSERT INTO project_uploads (lead_id, token, created_by, status, created_at, link_expires_at)
-         VALUES (:lead_id, :token, :created_by, "open", :created_at, :link_expires_at)'
-    );
-    $stmt->execute([
-        'lead_id' => $leadId,
-        'token' => $token,
-        'created_by' => $userId,
-        'created_at' => $now,
-        'link_expires_at' => $expires,
-    ]);
+    $db = crm_db();
+    $db->beginTransaction();
+    try {
+        $lock = $db->prepare('SELECT id FROM leads WHERE id = :lead_id FOR UPDATE');
+        $lock->execute(['lead_id' => $leadId]);
+        if ($lock->fetchColumn() === false) {
+            throw new RuntimeException('Cliente não encontrado.');
+        }
 
-    return ['id' => (int) crm_db()->lastInsertId(), 'token' => $token, 'link_expires_at' => $expires];
+        $current = crm_project_upload_current_link($leadId);
+        if ($current !== null) {
+            $db->commit();
+            return $current;
+        }
+
+        $token = rtrim(strtr(base64_encode(random_bytes(18)), '+/', '-_'), '=');
+        $now = date('Y-m-d H:i:s');
+        $expires = date('Y-m-d H:i:s', time() + 7 * 86400);
+        $stmt = $db->prepare(
+            'INSERT INTO project_uploads (lead_id, token, created_by, status, created_at, link_expires_at)
+             VALUES (:lead_id, :token, :created_by, "open", :created_at, :link_expires_at)'
+        );
+        $stmt->execute([
+            'lead_id' => $leadId,
+            'token' => $token,
+            'created_by' => $userId,
+            'created_at' => $now,
+            'link_expires_at' => $expires,
+        ]);
+        $created = ['id' => (int) $db->lastInsertId(), 'token' => $token, 'link_expires_at' => $expires];
+        $db->commit();
+        return $created;
+    } catch (Throwable $error) {
+        $db->rollBack();
+        throw $error;
+    }
 }
 
 function crm_project_upload_find_token(string $token): ?array

@@ -9,8 +9,7 @@ header('Cache-Control: no-store');
 $token = (string) ($_GET['token'] ?? $_GET['t'] ?? '');
 $upload = crm_project_upload_find_token($token);
 $available = is_array($upload)
-    && $upload['parent_upload_id'] === null
-    && (string) $upload['link_expires_at'] > date('Y-m-d H:i:s');
+    && crm_project_upload_is_current_link($upload);
 ?>
 <!doctype html>
 <html lang="pt-BR">
@@ -41,7 +40,7 @@ $available = is_array($upload)
   <div class="brand">MM Design Planejados</div>
   <?php if (!$available): ?>
     <h1>Link indisponível</h1>
-    <p>Este link expirou. Peça um novo link à equipe que está atendendo você.</p>
+    <p>Este link expirou ou foi substituído. Peça o link atual à equipe que está atendendo você.</p>
   <?php else: ?>
     <h1>Envie seu projeto</h1>
     <p>Selecione um ou vários arquivos. Você também poderá voltar a este link e enviar mais materiais enquanto ele estiver válido.</p>

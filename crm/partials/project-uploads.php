@@ -1,12 +1,13 @@
 <?php
 require_once dirname(__DIR__) . '/lib/project-uploads.php';
 $projectUploads = crm_project_uploads_for_lead((string) $activeLead['id']);
+$currentProjectLink = crm_project_upload_current_link((string) $activeLead['id']);
 $nowProject = date('Y-m-d H:i:s');
 ?>
 <section class="wa-lead-block wa-project-uploads" aria-label="Projetos do cliente">
   <div class="wa-project-heading">
     <div><h3>Projetos para orçamento</h3><small>Arquivos deste cliente</small></div>
-    <?php if (!$isAgency): ?>
+    <?php if (!$isAgency && $currentProjectLink === null): ?>
       <form method="post" action="create-project-upload.php">
         <input type="hidden" name="_csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>" />
         <input type="hidden" name="lead_id" value="<?= htmlspecialchars((string) $activeLead['id'], ENT_QUOTES, 'UTF-8') ?>" />
@@ -18,7 +19,8 @@ $nowProject = date('Y-m-d H:i:s');
     <?php
       $status = (string) $project['status'];
       $isLink = $project['parent_upload_id'] === null;
-      $linkOpen = $isLink && (string) $project['link_expires_at'] > $nowProject;
+      $linkOpen = $isLink && $currentProjectLink !== null
+          && (int) $project['id'] === (int) $currentProjectLink['id'];
       $fileReady = $status === 'ready' && (string) $project['delete_at'] > $nowProject;
     ?>
     <?php if ($linkOpen): ?>
@@ -42,7 +44,7 @@ $nowProject = date('Y-m-d H:i:s');
         <strong><?= htmlspecialchars((string) $project['original_name'], ENT_QUOTES, 'UTF-8') ?></strong>
         <small><?= $status === 'uploading' ? 'Envio em andamento.' : ($status === 'ready' ? 'Prazo encerrado. Aguardando remoção automática.' : 'Arquivo removido da hospedagem; registro mantido no CRM.') ?></small>
       </div>
-    <?php elseif ($isLink && !$linkOpen): ?>
+    <?php elseif ($isLink && (string) $project['link_expires_at'] <= $nowProject && trim((string) ($project['original_name'] ?? '')) === ''): ?>
       <div class="wa-project-item"><small>Link expirado sem envio.</small></div>
     <?php endif; ?>
   <?php endforeach; ?>
