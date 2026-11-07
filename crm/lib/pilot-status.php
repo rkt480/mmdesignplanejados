@@ -827,6 +827,7 @@ function pilot_status_extract_delivery_event(array $payload): array
         return [
             'event' => $event,
             'id' => $messageId,
+            'internal_id' => trim((string) ($data['internalMessageId'] ?? $data['internal_message_id'] ?? '')),
             'message_ids' => $messageIds,
             'correlation_id' => $correlationId,
             'biz_opaque_callback_data' => $opaqueCallbackData,
@@ -875,6 +876,7 @@ function pilot_status_extract_delivery_event(array $payload): array
                 return [
                     'event' => $mappedEvent,
                     'id' => trim((string) ($status['id'] ?? '')),
+                    'internal_id' => trim((string) ($status['internalMessageId'] ?? $status['internal_message_id'] ?? '')),
                     'message_ids' => $collectMessageIds([$status]),
                     'correlation_id' => trim((string) ($status['correlationId'] ?? $status['correlation_id'] ?? '')),
                     'biz_opaque_callback_data' => trim((string) ($status['biz_opaque_callback_data'] ?? '')),
@@ -885,7 +887,7 @@ function pilot_status_extract_delivery_event(array $payload): array
         }
     }
 
-    return ['event' => '', 'id' => '', 'message_ids' => [], 'correlation_id' => '', 'biz_opaque_callback_data' => '', 'destination' => '', 'error' => ''];
+    return ['event' => '', 'id' => '', 'internal_id' => '', 'message_ids' => [], 'correlation_id' => '', 'biz_opaque_callback_data' => '', 'destination' => '', 'error' => ''];
 }
 
 function pilot_status_send_text(string $number, string $text): array

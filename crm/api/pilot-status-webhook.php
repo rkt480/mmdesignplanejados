@@ -103,22 +103,24 @@ if ($delivery['event'] !== '' && $outgoingMessages === []) {
 
     $messageLinkResolved = false;
     if ($deliveryMessageIds !== []) {
-        $leadMessages = whatsapp_page_messages_for_lead($lead);
-        $matchedMessage = whatsapp_page_find_message_by_ids($leadMessages, $deliveryMessageIds);
-        if (is_array($matchedMessage)) {
-            $matchedIds = whatsapp_page_message_id_candidates($matchedMessage);
-            $baseMessageId = '';
-            foreach ($matchedIds as $candidateId) {
-                if (crm_lead_has_whatsapp_message_id($lead, $candidateId)) {
-                    $baseMessageId = $candidateId;
-                    break;
-                }
+        // This endpoint cannot load the conversation page: that file renders
+        // HTML and its whatsapp_page_* helpers are not available here.
+        $baseMessageId = '';
+        foreach (array_merge([
+            (string) ($delivery['internal_id'] ?? ''),
+            (string) ($delivery['correlation_id'] ?? ''),
+            (string) ($delivery['biz_opaque_callback_data'] ?? ''),
+        ], $deliveryMessageIds) as $candidateId) {
+            $candidateId = trim((string) $candidateId);
+            if ($candidateId !== '' && crm_lead_has_whatsapp_message_id($lead, $candidateId)) {
+                $baseMessageId = $candidateId;
+                break;
             }
-            if ($baseMessageId !== '') {
-                crm_append_whatsapp_message_aliases((string) $lead['id'], $baseMessageId, $deliveryMessageIds);
-                $lead = crm_find_lead((string) $lead['id']) ?? $lead;
-                $messageLinkResolved = true;
-            }
+        }
+        if ($baseMessageId !== '') {
+            crm_append_whatsapp_message_aliases((string) $lead['id'], $baseMessageId, $deliveryMessageIds);
+            $lead = crm_find_lead((string) $lead['id']) ?? $lead;
+            $messageLinkResolved = true;
         }
     }
 
