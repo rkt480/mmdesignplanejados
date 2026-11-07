@@ -5,7 +5,7 @@ $nowProject = date('Y-m-d H:i:s');
 ?>
 <section class="wa-project-uploads" aria-label="Projetos do cliente">
   <div class="wa-project-heading">
-    <div><strong>Projetos para orçamento</strong><small>Arquivos enviados por link e vinculados a este cliente</small></div>
+    <div><h3>Projetos para orçamento</h3><small>Arquivos deste cliente</small></div>
     <?php if (!$isAgency): ?>
       <form method="post" action="create-project-upload.php">
         <input type="hidden" name="_csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>" />

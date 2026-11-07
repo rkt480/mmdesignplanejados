@@ -133,7 +133,7 @@ function whatsapp_page_friendly_failure_message(string $error): string
         || str_contains($normalized, 'videocodec=hevc')
         || str_contains($normalized, 'hevc')
     ) {
-        return 'Falha ao enviar o vídeo. O formato ou codec não é compatível com o WhatsApp.';
+        return 'Falha no envio de mídia pelo WhatsApp. O formato não foi aceito pelo provedor.';
     }
 
     if (
@@ -141,7 +141,7 @@ function whatsapp_page_friendly_failure_message(string $error): string
         || str_contains($normalized, '16mb')
         || str_contains($normalized, 'media file size too big')
     ) {
-        return 'Falha ao enviar o vídeo. O tamanho máximo permitido é 16 MB.';
+        return 'Falha no envio de mídia pelo WhatsApp. O limite informado pelo provedor é 16 MB.';
     }
 
     return 'Falha ao enviar a mensagem. Tente novamente.';
@@ -1783,8 +1783,6 @@ if ($isWaConversationFragment) {
             </div>
           </header>
 
-          <?php require __DIR__ . '/partials/project-uploads.php'; ?>
-
           <?php if ((string) ($activeLead['whatsapp_status'] ?? '') === 'falhou' && trim((string) ($activeLead['whatsapp_error'] ?? '')) !== ''): ?>
             <div class="wa-toast"><?= htmlspecialchars(whatsapp_page_friendly_failure_message((string) $activeLead['whatsapp_error'])) ?></div>
           <?php endif; ?>
@@ -2169,6 +2167,7 @@ if ($isWaConversationFragment) {
               <a class="secondary-action" href="settings.php">Configurar WhatsApp</a>
             <?php endif; ?>
           </section>
+          <?php require __DIR__ . '/partials/project-uploads.php'; ?>
         <?php endif; ?>
       </aside>
     </main>
