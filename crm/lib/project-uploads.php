@@ -42,7 +42,7 @@ function crm_project_upload_app_url(): string
 
 function crm_project_upload_link(array $upload): string
 {
-    return crm_project_upload_app_url() . '/p.php?t=' . rawurlencode((string) $upload['token']);
+    return crm_project_upload_app_url() . '/p.php?t=' . rawurlencode(substr((string) $upload['token'], 0, 24));
 }
 
 function crm_project_upload_create(string $leadId, int $userId): array
@@ -71,10 +71,12 @@ function crm_project_upload_find_token(string $token): ?array
         return null;
     }
 
-    $stmt = crm_db()->prepare('SELECT * FROM project_uploads WHERE BINARY token = :token LIMIT 1');
+    $stmt = crm_db()->prepare(strlen($token) === 24
+        ? 'SELECT * FROM project_uploads WHERE LEFT(BINARY token, 24) = :token LIMIT 2'
+        : 'SELECT * FROM project_uploads WHERE BINARY token = :token LIMIT 2');
     $stmt->execute(['token' => $token]);
-    $row = $stmt->fetch();
-    return is_array($row) ? $row : null;
+    $rows = $stmt->fetchAll();
+    return count($rows) === 1 ? $rows[0] : null;
 }
 
 function crm_project_uploads_for_lead(string $leadId): array
