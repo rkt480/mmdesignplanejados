@@ -77,7 +77,7 @@ function crm_db_reconnect(): PDO
 
 function crm_schema_version(): string
 {
-    return '20261024.1';
+    return '20261107.1';
 }
 
 function crm_schema_version_is_current(PDO $pdo): bool
@@ -202,6 +202,29 @@ function crm_ensure_crm_schema(PDO $pdo): void
             setting_value LONGTEXT NOT NULL,
             created_at DATETIME NOT NULL,
             updated_at DATETIME NOT NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+    );
+
+    $pdo->exec(
+        'CREATE TABLE IF NOT EXISTS project_uploads (
+            id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            lead_id VARCHAR(32) NOT NULL,
+            token CHAR(64) NOT NULL UNIQUE,
+            created_by INT NOT NULL,
+            status VARCHAR(20) NOT NULL DEFAULT "open",
+            original_name VARCHAR(255) NULL,
+            file_key CHAR(64) NULL,
+            expected_size BIGINT UNSIGNED NOT NULL DEFAULT 0,
+            bytes_received BIGINT UNSIGNED NOT NULL DEFAULT 0,
+            mime_type VARCHAR(120) NULL,
+            created_at DATETIME NOT NULL,
+            link_expires_at DATETIME NOT NULL,
+            uploaded_at DATETIME NULL,
+            first_download_at DATETIME NULL,
+            delete_at DATETIME NULL,
+            deleted_at DATETIME NULL,
+            INDEX idx_project_uploads_lead (lead_id, created_at),
+            INDEX idx_project_uploads_expiry (status, delete_at, link_expires_at)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
     );
 

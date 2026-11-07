@@ -18,3 +18,11 @@ Cópia independente do CRM da MM Design. O mesmo código pode ser usado para tes
 5. Defina `admin_password_hash` para a senha do painel. A senha do painel é diferente da senha MySQL.
 
 Os bancos local e da Hostinger são independentes; leads e demais dados de teste não são sincronizados automaticamente com a produção.
+
+## Projetos grandes enviados pelo cliente
+
+Na conversa do cliente, o vendedor clica em **Gerar link de envio** e compartilha o endereço pelo WhatsApp. O cliente abre a página no navegador e envia um arquivo SKP, ZIP, PDF, DWG ou DXF de até 1 GB. O envio ocorre em blocos de 2 MB e pode ser retomado com o mesmo arquivo. O projeto aparece na conversa para download por usuários com acesso ao lead. O link expira em 7 dias e aceita um único arquivo.
+
+Os arquivos ficam em `crm/data/project-uploads/`, protegidos pela regra `crm/data/.htaccess`, e não entram no Git. Confirme que a hospedagem permite gravar nessa pasta e tem espaço disponível. O banco cria a tabela `project_uploads` automaticamente no primeiro acesso após o deploy.
+
+O prazo de exclusão do arquivo começa no primeiro download: 72 horas, limitado a 7 dias depois do envio. A limpeza também roda ao abrir a caixa de conversas. Para garantir a exclusão mesmo sem acessos ao CRM, configure no hPanel uma tarefa cron horária que execute `php /caminho/absoluto/para/crm/run-project-upload-cleanup.php`, substituindo o caminho pelo diretório real da instalação na Hostinger.

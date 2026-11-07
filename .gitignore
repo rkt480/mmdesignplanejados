@@ -12,6 +12,8 @@ crm/data/*.log
 crm/data/*.lock
 crm/data/security-*.json
 crm/data/lead-webhook-diagnostics.jsonl
+crm/data/project-uploads/
+crm/data/project-upload-cleanup.check
 
 # Arquivos do sistema operacional
 .DS_Store

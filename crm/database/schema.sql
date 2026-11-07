@@ -81,6 +81,27 @@ CREATE TABLE IF NOT EXISTS mm_planejados_crm.crm_settings (
   updated_at DATETIME NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS mm_planejados_crm.project_uploads (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  lead_id VARCHAR(32) NOT NULL,
+  token CHAR(64) NOT NULL UNIQUE,
+  created_by INT NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'open',
+  original_name VARCHAR(255) NULL,
+  file_key CHAR(64) NULL,
+  expected_size BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  bytes_received BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  mime_type VARCHAR(120) NULL,
+  created_at DATETIME NOT NULL,
+  link_expires_at DATETIME NOT NULL,
+  uploaded_at DATETIME NULL,
+  first_download_at DATETIME NULL,
+  delete_at DATETIME NULL,
+  deleted_at DATETIME NULL,
+  INDEX idx_project_uploads_lead (lead_id, created_at),
+  INDEX idx_project_uploads_expiry (status, delete_at, link_expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS mm_planejados_crm.whatsapp_templates (
   id INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(512) NOT NULL UNIQUE,

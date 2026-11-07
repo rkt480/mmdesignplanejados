@@ -10,8 +10,10 @@ require_once __DIR__ . '/lib/whatsapp.php';
 require_once __DIR__ . '/lib/whatsapp-templates.php';
 require_once __DIR__ . '/lib/whatsapp-events.php';
 require_once __DIR__ . '/lib/openai-coach.php';
+require_once __DIR__ . '/lib/project-uploads.php';
 
 crm_require_login();
+crm_project_upload_cleanup_if_due();
 
 $currentUser = crm_current_user();
 $currentUserId = (int) ($currentUser['id'] ?? 0);
@@ -1780,6 +1782,8 @@ if ($isWaConversationFragment) {
               <p><?= htmlspecialchars(crm_normalize_lead_whatsapp((string) ($activeLead['whatsapp'] ?? ''))) ?></p>
             </div>
           </header>
+
+          <?php require __DIR__ . '/partials/project-uploads.php'; ?>
 
           <?php if ((string) ($activeLead['whatsapp_status'] ?? '') === 'falhou' && trim((string) ($activeLead['whatsapp_error'] ?? '')) !== ''): ?>
             <div class="wa-toast"><?= htmlspecialchars(whatsapp_page_friendly_failure_message((string) $activeLead['whatsapp_error'])) ?></div>
@@ -3939,6 +3943,21 @@ if ($isWaConversationFragment) {
             window.location.reload();
           }
         });
+      });
+    </script>
+    <script>
+      document.addEventListener('click', async (event) => {
+        const button = event.target.closest?.('[data-project-copy]');
+        if (!button) return;
+        const input = button.parentElement?.querySelector('input');
+        if (!input) return;
+        try {
+          await navigator.clipboard.writeText(input.value);
+        } catch (_) {
+          input.select();
+          document.execCommand('copy');
+        }
+        button.textContent = 'Copiado';
       });
     </script>
     <script src="./assets/crm.js?v=20260911-coach-v5"></script>

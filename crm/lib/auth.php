@@ -127,6 +127,7 @@ function crm_agency_user_can_access_current_route(): bool
     $allowedRoutes = [
         '/index.php',
         '/whatsapp.php',
+        '/download-project-upload.php',
         '/api/lead-details.php',
         '/api/lead-feed.php',
         '/api/lead-profile-picture.php',

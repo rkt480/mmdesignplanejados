@@ -22,6 +22,8 @@ crm_require_login();
       </div>
     </header>
 
+    <?php require __DIR__ . '/project-uploads.php'; ?>
+
     <?php if ((string) ($activeLead['whatsapp_status'] ?? '') === 'falhou' && trim((string) ($activeLead['whatsapp_error'] ?? '')) !== ''): ?>
       <div class="wa-toast"><?= htmlspecialchars(whatsapp_page_friendly_failure_message((string) $activeLead['whatsapp_error'])) ?></div>
     <?php endif; ?>

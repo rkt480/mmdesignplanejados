@@ -5377,6 +5377,42 @@ textarea:focus {
   font-size: 0.86rem;
 }
 
+.whatsapp-crm-page .wa-project-uploads {
+  flex: 0 0 auto;
+  max-height: 210px;
+  overflow-y: auto;
+  padding: 12px 18px;
+  background: #f7fbfa;
+  border-bottom: 1px solid #d6e6e2;
+  font-size: 0.82rem;
+}
+
+.whatsapp-crm-page .wa-project-heading,
+.whatsapp-crm-page .wa-project-link-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.whatsapp-crm-page .wa-project-heading { justify-content: space-between; }
+.whatsapp-crm-page .wa-project-heading small,
+.whatsapp-crm-page .wa-project-item small { display: block; color: #64748b; }
+.whatsapp-crm-page .wa-project-heading button,
+.whatsapp-crm-page .wa-project-link-row button {
+  border: 0;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #0f766e;
+  color: white;
+  font-weight: 700;
+  cursor: pointer;
+}
+.whatsapp-crm-page .wa-project-item { padding: 10px 0; border-top: 1px solid #dce8e5; }
+.whatsapp-crm-page .wa-project-item:first-of-type { margin-top: 8px; }
+.whatsapp-crm-page .wa-project-link-row { margin-top: 7px; }
+.whatsapp-crm-page .wa-project-link-row input { flex: 1; min-width: 0; padding: 7px; border: 1px solid #cbd5e1; border-radius: 7px; }
+.whatsapp-crm-page .wa-project-item a { display: inline-block; margin-top: 5px; color: #075985; font-weight: 700; }
+
 .whatsapp-crm-page .wa-message footer {
   display: flex;
   justify-content: flex-end;
