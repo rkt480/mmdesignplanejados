@@ -5379,37 +5379,33 @@ textarea:focus {
 
 .whatsapp-crm-page .wa-project-uploads {
   min-width: 0;
-  padding: 16px;
-  border-radius: 16px;
-  background: #fff;
-  font-size: 0.82rem;
+  gap: 14px;
 }
 
 .whatsapp-crm-page .wa-project-heading,
 .whatsapp-crm-page .wa-project-link-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+  display: grid;
+  gap: 8px;
 }
 
-.whatsapp-crm-page .wa-project-heading { flex-wrap: wrap; justify-content: space-between; }
-.whatsapp-crm-page .wa-project-heading h3 { margin: 0; font-size: 0.93rem; }
+.whatsapp-crm-page .wa-project-heading h3 { margin: 0 0 4px; }
 .whatsapp-crm-page .wa-project-heading small,
-.whatsapp-crm-page .wa-project-item small { display: block; color: #64748b; }
+.whatsapp-crm-page .wa-project-item small { display: block; color: #64748b; font-size: 0.78rem; line-height: 1.4; }
 .whatsapp-crm-page .wa-project-heading button,
 .whatsapp-crm-page .wa-project-link-row button {
+  width: 100%;
   border: 0;
-  border-radius: 8px;
-  padding: 8px 10px;
+  border-radius: 10px;
+  padding: 10px 12px;
   background: #0f766e;
   color: white;
   font-weight: 700;
   cursor: pointer;
 }
-.whatsapp-crm-page .wa-project-item { padding: 10px 0; border-top: 1px solid #dce8e5; }
-.whatsapp-crm-page .wa-project-item:first-of-type { margin-top: 8px; }
-.whatsapp-crm-page .wa-project-link-row { margin-top: 7px; }
-.whatsapp-crm-page .wa-project-link-row input { flex: 1; min-width: 0; padding: 7px; border: 1px solid #cbd5e1; border-radius: 7px; }
+.whatsapp-crm-page .wa-project-item { min-width: 0; padding: 12px; border: 1px solid #e0e9e6; border-radius: 12px; background: #f7fbfa; overflow-wrap: anywhere; }
+.whatsapp-crm-page .wa-project-item strong { display: block; margin-bottom: 3px; }
+.whatsapp-crm-page .wa-project-link-row { margin-top: 10px; }
+.whatsapp-crm-page .wa-project-link-row input { width: 100%; min-width: 0; padding: 10px; border: 1px solid #cbd5e1; border-radius: 9px; background: #fff; }
 .whatsapp-crm-page .wa-project-item a { display: inline-block; margin-top: 5px; color: #075985; font-weight: 700; }
 
 .whatsapp-crm-page .wa-message footer {

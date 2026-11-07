@@ -1783,10 +1783,6 @@ if ($isWaConversationFragment) {
             </div>
           </header>
 
-          <?php if ((string) ($activeLead['whatsapp_status'] ?? '') === 'falhou' && trim((string) ($activeLead['whatsapp_error'] ?? '')) !== ''): ?>
-            <div class="wa-toast"><?= htmlspecialchars(whatsapp_page_friendly_failure_message((string) $activeLead['whatsapp_error'])) ?></div>
-          <?php endif; ?>
-
           <div class="wa-message-surface">
             <div class="wa-day-chip">Histórico do CRM</div>
 
@@ -2089,6 +2085,8 @@ if ($isWaConversationFragment) {
             </form>
           </section>
 
+          <?php require __DIR__ . '/partials/project-uploads.php'; ?>
+
           <section class="wa-lead-block">
             <h3>Follow-up</h3>
             <form class="wa-side-form" method="post" action="assign-followup.php">
@@ -2167,7 +2165,6 @@ if ($isWaConversationFragment) {
               <a class="secondary-action" href="settings.php">Configurar WhatsApp</a>
             <?php endif; ?>
           </section>
-          <?php require __DIR__ . '/partials/project-uploads.php'; ?>
         <?php endif; ?>
       </aside>
     </main>

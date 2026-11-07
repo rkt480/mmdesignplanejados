@@ -3,7 +3,7 @@ require_once dirname(__DIR__) . '/lib/project-uploads.php';
 $projectUploads = crm_project_uploads_for_lead((string) $activeLead['id']);
 $nowProject = date('Y-m-d H:i:s');
 ?>
-<section class="wa-project-uploads" aria-label="Projetos do cliente">
+<section class="wa-lead-block wa-project-uploads" aria-label="Projetos do cliente">
   <div class="wa-project-heading">
     <div><h3>Projetos para orçamento</h3><small>Arquivos deste cliente</small></div>
     <?php if (!$isAgency): ?>
