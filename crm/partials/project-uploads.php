@@ -37,7 +37,7 @@ $nowProject = date('Y-m-d H:i:s');
       <div class="wa-project-item">
         <strong><?= htmlspecialchars((string) $project['original_name'], ENT_QUOTES, 'UTF-8') ?></strong>
         <small><?= number_format((int) $project['expected_size'] / 1024 / 1024, 1, ',', '.') ?> MB · Exclusão prevista para <?= htmlspecialchars(date('d/m/Y H:i', strtotime((string) $project['delete_at'])), ENT_QUOTES, 'UTF-8') ?></small>
-        <a href="download-project-upload.php?id=<?= (int) $project['id'] ?>">Baixar projeto</a>
+        <a href="download-project-upload.php?id=<?= (int) $project['id'] ?>" data-no-navigation-transition data-no-navigation-prefetch>Baixar projeto</a>
       </div>
     <?php elseif (trim((string) ($project['original_name'] ?? '')) !== ''): ?>
       <div class="wa-project-item">
