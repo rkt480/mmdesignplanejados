@@ -799,12 +799,30 @@ function pilot_status_extract_delivery_event(array $payload): array
             ['phone_number'],
         ]));
         $messageIds = $collectMessageIds([$data]);
+        // Pilot Status versions differ on whether these callback identifiers
+        // sit beside the event envelope or inside `data`. Keep both forms;
+        // do not treat the envelope's own `id` as a message alias here.
+        foreach (['internalMessageId', 'internal_message_id', 'message_id', 'messageId', 'correlationId', 'correlation_id', 'biz_opaque_callback_data', 'callbackData', 'callback_data', 'opaqueCallbackData'] as $key) {
+            $value = $payload[$key] ?? null;
+            if (is_scalar($value)) {
+                $value = trim((string) $value);
+                if ($value !== '' && !in_array($value, $messageIds, true)) {
+                    $messageIds[] = $value;
+                }
+            }
+        }
         $correlationId = trim((string) pilot_status_first_payload_value($data, [
             ['correlationId'], ['correlation_id'], ['message', 'correlationId'], ['message', 'correlation_id'],
         ]));
+        if ($correlationId === '') {
+            $correlationId = trim((string) ($payload['correlationId'] ?? $payload['correlation_id'] ?? ''));
+        }
         $opaqueCallbackData = trim((string) pilot_status_first_payload_value($data, [
             ['biz_opaque_callback_data'], ['message', 'biz_opaque_callback_data'],
         ]));
+        if ($opaqueCallbackData === '') {
+            $opaqueCallbackData = trim((string) ($payload['biz_opaque_callback_data'] ?? ''));
+        }
 
         return [
             'event' => $event,
