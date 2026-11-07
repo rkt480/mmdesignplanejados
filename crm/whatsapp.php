@@ -193,21 +193,37 @@ function whatsapp_page_received_media_markup(array $media): string
 {
     $url = whatsapp_page_media_url((string) ($media['url'] ?? ''));
 
-    if ($url === '') {
-        return '';
-    }
-
     $type = (string) ($media['type'] ?? '');
     $mimeType = trim((string) ($media['mime_type'] ?? ''));
+    $fileName = trim((string) ($media['filename'] ?? ''));
+    $safeLabel = htmlspecialchars(whatsapp_page_media_label($media), ENT_QUOTES, 'UTF-8');
+
+    if ($url === '') {
+        $safeFileName = htmlspecialchars($fileName !== '' ? $fileName : 'Anexo recebido', ENT_QUOTES, 'UTF-8');
+        $downloadError = trim((string) ($media['download_error'] ?? ''));
+        $fileSize = max(0, (int) ($media['file_size'] ?? 0));
+        $sizeLabel = $fileSize >= 1024 * 1024
+            ? number_format($fileSize / 1024 / 1024, 1, ',', '.') . ' MB'
+            : ($fileSize >= 1024 ? number_format($fileSize / 1024, 0, ',', '.') . ' KB' : '');
+        $safeError = htmlspecialchars(
+            ($sizeLabel !== '' ? $sizeLabel . ' · ' : '')
+                . ($downloadError !== '' ? $downloadError : 'O arquivo foi recebido, mas ainda não está disponível para download.'),
+            ENT_QUOTES,
+            'UTF-8'
+        );
+
+        return '<div class="wa-received-file-unavailable"><strong>' . $safeFileName . '</strong><span>' . $safeError . '</span></div>';
+    }
+
     $safeUrl = htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
     $safeMimeType = htmlspecialchars($mimeType, ENT_QUOTES, 'UTF-8');
-    $safeLabel = htmlspecialchars(whatsapp_page_media_label($media), ENT_QUOTES, 'UTF-8');
+    $safeFileName = htmlspecialchars($fileName !== '' ? $fileName : whatsapp_page_media_label($media), ENT_QUOTES, 'UTF-8');
 
     return match ($type) {
         'image', 'sticker' => '<img class="wa-received-media wa-received-image" src="' . $safeUrl . '" alt="' . $safeLabel . '" loading="lazy" />',
         'audio' => '<audio class="wa-received-media wa-received-audio" controls preload="metadata"><source src="' . $safeUrl . '"' . ($safeMimeType !== '' ? ' type="' . $safeMimeType . '"' : '') . ' />Seu navegador não suporta este áudio.</audio>',
         'video' => '<video class="wa-received-media wa-received-video" controls preload="metadata"><source src="' . $safeUrl . '"' . ($safeMimeType !== '' ? ' type="' . $safeMimeType . '"' : '') . ' />Seu navegador não suporta este vídeo.</video>',
-        default => '<a class="wa-received-file" href="' . $safeUrl . '" target="_blank" rel="noopener noreferrer">Abrir ' . $safeLabel . '</a>',
+        default => '<a class="wa-received-file" href="' . $safeUrl . '" download="' . $safeFileName . '" target="_blank" rel="noopener noreferrer">Baixar ' . $safeFileName . '</a>',
     };
 }
 
@@ -758,7 +774,7 @@ function whatsapp_page_is_technical_delivery_note(string $text): bool
  */
 function whatsapp_page_note_blocks(string $notes): array
 {
-    $recordStart = '(?:\[crm_message_aliases\]|\[crm_pending_message_ids\]|Resposta automática fora do horário enviada via|Observação do CRM em|Mensagem recebida pelo provedor anterior|Mensagem recebida pela Meta Cloud API|Mensagem recebida pela Pilot Status|Mídia recebida pela Pilot Status|Mídia enviada (?:via|pelo)|Mensagem enviada (?:via|pelo)|Template .+ enviado (?:automaticamente )?via|Falha ao enviar via|Pilot Status evento:)';
+    $recordStart = '(?:\[crm_message_aliases\]|\[crm_pending_message_ids\]|Resposta automática fora do horário enviada via|Observação do CRM em|Mensagem recebida pelo provedor anterior|Mensagem recebida pela Meta Cloud API|Mensagem recebida pela Pilot Status|Mídia recebida pela (?:Meta Cloud API|Pilot Status)|Mídia enviada (?:via|pelo)|Mensagem enviada (?:via|pelo)|Template .+ enviado (?:automaticamente )?via|Falha ao enviar via|Pilot Status evento:)';
     $blocks = [];
 
     // A resposta fora do horário pode conter parágrafos separados por linhas
@@ -1014,24 +1030,31 @@ function whatsapp_page_messages_for_lead(array $lead): array
                 continue;
             }
 
-            if (preg_match('/^Mídia recebida pela Pilot Status em ([0-9]{2}\/[0-9]{2}\/[0-9]{4} [0-9]{2}:[0-9]{2}(?::[0-9]{2})?):\R\[crm_media\](.+)$/su', $block, $match) === 1) {
-                $media = json_decode((string) $match[2], true);
+            if (preg_match('/^Mídia recebida pela (Meta Cloud API|Pilot Status) em ([0-9]{2}\/[0-9]{2}\/[0-9]{4} [0-9]{2}:[0-9]{2}(?::[0-9]{2})?):\R\[crm_media\](.+)$/su', $block, $match) === 1) {
+                $media = json_decode((string) $match[3], true);
 
                 if (is_array($media)) {
                     $caption = trim((string) ($media['caption'] ?? ''));
+                    $fileName = trim((string) ($media['filename'] ?? ''));
                     $incomingMessage = [
                         'direction' => 'incoming',
-                        'provider' => 'pilot_status',
-                        'at' => whatsapp_page_parse_br_datetime((string) $match[1]),
+                        'provider' => strtolower((string) $match[1]) === 'meta cloud api' ? 'meta_cloud' : 'pilot_status',
+                        'at' => whatsapp_page_parse_br_datetime((string) $match[2]),
                         'text' => $caption !== '' ? $caption : whatsapp_page_media_label($media),
                         'label' => 'Recebida',
                     ];
+
+                    if (trim((string) ($media['crm_message_id'] ?? '')) !== '') {
+                        $incomingMessage['message_id'] = trim((string) $media['crm_message_id']);
+                    }
 
                     if (is_array($media['reply_context'] ?? null)) {
                         $incomingMessage['reply_context'] = $media['reply_context'];
                     }
 
-                    if (whatsapp_page_media_url((string) ($media['url'] ?? '')) !== '') {
+                    if (whatsapp_page_media_url((string) ($media['url'] ?? '')) !== ''
+                        || $fileName !== ''
+                        || trim((string) ($media['download_error'] ?? '')) !== '') {
                         $incomingMessage['media'] = $media;
                     }
 
@@ -1838,7 +1861,7 @@ if ($isWaConversationFragment) {
                 <button type="button" data-wa-emoji-value="❤️">❤️</button>
                 <button type="button" data-wa-emoji-value="🙏">🙏</button>
               </div>
-              <input id="wa-media-input" class="wa-media-input" type="file" name="media" accept="image/jpeg,image/png,image/webp,image/gif,audio/*,video/*,application/pdf,application/msword,application/rtf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/plain,.mp4,.m4v,.3gp,.3g2,.mov,.webm,.mkv,.avi,.wmv,.flv,.mpeg,.mpg,.ogv,.m2ts,.mts,.ts,.vob,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt" data-wa-media hidden />
+              <input id="wa-media-input" class="wa-media-input" type="file" name="media" accept="image/jpeg,image/png,image/webp,image/gif,audio/*,video/*,application/pdf,application/msword,application/rtf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/plain,.mp4,.m4v,.3gp,.3g2,.mov,.webm,.mkv,.avi,.wmv,.flv,.mpeg,.mpg,.ogv,.m2ts,.mts,.ts,.vob,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.skp" data-wa-media hidden />
               <input class="wa-video-input" type="file" accept="video/*,.mp4,.m4v,.3gp,.3g2,.mov,.webm,.mkv,.avi,.wmv,.flv,.mpeg,.mpg,.ogv,.m2ts,.mts,.ts,.vob" capture="environment" data-wa-video-media hidden />
             </div>
             <input type="hidden" name="_csrf_token" value="<?= htmlspecialchars($csrfToken) ?>" />

@@ -101,6 +101,11 @@ $results = [];
 foreach ($incomingMessages as $incoming) {
     $whatsapp = (string) ($incoming['number'] ?? '');
     $message = trim((string) ($incoming['text'] ?? ''));
+    $media = is_array($incoming['media'] ?? null) ? $incoming['media'] : [];
+    $mediaUrl = trim((string) ($media['url'] ?? ''));
+    $incomingMediaId = trim((string) ($media['id'] ?? ''));
+    $incomingMediaType = trim((string) ($media['type'] ?? ''));
+    $hasIncomingMedia = $incomingMediaId !== '' || $mediaUrl !== '' || $incomingMediaType !== '';
     $name = trim((string) ($incoming['name'] ?? ''));
     $replyContext = is_array($incoming['reply_context'] ?? null) ? $incoming['reply_context'] : [];
     $profilePictureUrl = crm_normalize_profile_picture_url((string) ($incoming['profile_picture_url'] ?? ''));
@@ -111,6 +116,37 @@ foreach ($incomingMessages as $incoming) {
 
     if ($name === '') {
         $name = 'Contato WhatsApp ' . substr($whatsapp, -4);
+    }
+
+    if ($hasIncomingMedia && $incomingMediaId !== '' && $mediaUrl === '') {
+        try {
+            $storedMedia = meta_whatsapp_store_inbound_media($media);
+
+            if (($storedMedia['ok'] ?? false) === true) {
+                $media['url'] = (string) ($storedMedia['url'] ?? '');
+                $media['type'] = (string) ($storedMedia['type'] ?? $incomingMediaType);
+                $media['mime_type'] = (string) ($storedMedia['mime_type'] ?? ($media['mime_type'] ?? ''));
+                $media['filename'] = (string) ($storedMedia['filename'] ?? ($media['filename'] ?? ''));
+                $media['file_size'] = (int) ($storedMedia['file_size'] ?? ($media['file_size'] ?? 0));
+                $mediaUrl = (string) ($storedMedia['url'] ?? '');
+            } else {
+                $media['file_size'] = (int) ($storedMedia['file_size'] ?? ($media['file_size'] ?? 0));
+                $media['mime_type'] = (string) ($storedMedia['mime_type'] ?? ($media['mime_type'] ?? ''));
+                $media['filename'] = (string) ($storedMedia['filename'] ?? ($media['filename'] ?? ''));
+                $media['download_error'] = (string) ($storedMedia['error'] ?? 'Não foi possível baixar o anexo recebido. Peça ao cliente um link do Google Drive ou OneDrive.');
+            }
+        } catch (Throwable $error) {
+            meta_whatsapp_log('Falha ao baixar anexo recebido.', [
+                'message_id' => (string) ($incoming['id'] ?? ''),
+                'type' => $incomingMediaType,
+                'error' => $error->getMessage(),
+            ]);
+            $media['download_error'] = 'Não foi possível baixar o anexo recebido pelo WhatsApp. Peça ao cliente um link do Google Drive ou OneDrive.';
+        }
+    }
+
+    if ($hasIncomingMedia && $mediaUrl === '' && trim((string) ($media['download_error'] ?? '')) === '') {
+        $media['download_error'] = 'O WhatsApp informou o anexo, mas não disponibilizou o conteúdo para download. Peça ao cliente um link do Google Drive ou OneDrive.';
     }
 
     $attribution = is_array($incoming['attribution'] ?? null)
@@ -124,7 +160,7 @@ foreach ($incomingMessages as $incoming) {
         'company' => 'Não informado',
         'segment' => 'WhatsApp',
         'advertises' => 'whatsapp',
-        'message' => $message !== '' ? $message : 'Mensagem recebida pela Meta Cloud API.',
+        'message' => $hasIncomingMedia ? '' : ($message !== '' ? $message : 'Mensagem recebida pela Meta Cloud API.'),
         'page' => 'Meta WhatsApp Cloud API',
         'utm_source' => (string) ($attribution['utm_source'] ?? '') ?: 'meta_whatsapp_cloud',
         'utm_medium' => (string) ($attribution['utm_medium'] ?? '') ?: 'whatsapp',
@@ -146,7 +182,58 @@ foreach ($incomingMessages as $incoming) {
             crm_update_lead_profile_picture((string) $lead['id'], $profilePictureUrl);
         }
 
-        if (($leadResult['created'] ?? false) === false && $message !== '') {
+        if ($hasIncomingMedia) {
+            $dedupeMarker = $incoming['id'] ?? '';
+            $dedupeMarker = is_scalar($dedupeMarker) && trim((string) $dedupeMarker) !== ''
+                ? '"crm_message_id":' . json_encode(trim((string) $dedupeMarker), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+                : ($incomingMediaId !== ''
+                    ? '"id":' . json_encode($incomingMediaId, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+                    : '');
+
+            if ($dedupeMarker !== '' && str_contains((string) ($lead['notes'] ?? ''), $dedupeMarker)) {
+                $results[] = [
+                    'ok' => true,
+                    'whatsapp' => $whatsapp,
+                    'lead_id' => $lead['id'],
+                    'duplicate' => true,
+                    'message_id' => (string) ($incoming['id'] ?? ''),
+                ];
+                continue;
+            }
+
+            $media['url'] = $mediaUrl;
+            $media['type'] = $incomingMediaType;
+            $media['caption'] = trim((string) ($media['caption'] ?? '')) ?: $message;
+            $media['mime_type'] = trim((string) ($media['mime_type'] ?? ''));
+            $media['filename'] = trim((string) ($media['filename'] ?? ''));
+            $media['file_size'] = max(0, (int) ($media['file_size'] ?? 0));
+            $media['crm_message_id'] = trim((string) ($incoming['id'] ?? ''));
+
+            if ($replyContext !== []) {
+                $media['reply_context'] = $replyContext;
+            }
+
+            $mediaJson = json_encode($media, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+            if (is_string($mediaJson) && $mediaJson !== '') {
+                crm_append_lead_note(
+                    (string) $lead['id'],
+                    'Mídia recebida pela Meta Cloud API em ' . date('d/m/Y H:i:s') . ":\n[crm_media]" . $mediaJson
+                );
+
+                if (($leadResult['created'] ?? false) === false) {
+                    $notificationText = $message !== ''
+                        ? $message
+                        : (trim((string) ($media['filename'] ?? '')) ?: 'Anexo recebido pelo WhatsApp');
+                    crm_notify_lead_reply_push(
+                        $lead,
+                        $notificationText,
+                        (string) ($incoming['id'] ?? $incomingMediaId),
+                        (string) ($incoming['timestamp'] ?? '')
+                    );
+                }
+            }
+        } elseif (($leadResult['created'] ?? false) === false && $message !== '') {
             $incomingNote = 'Mensagem recebida pela Meta Cloud API em ' . date('d/m/Y H:i') . ":\n" . $message;
             $incomingNote .= crm_whatsapp_reply_context_note($replyContext);
             crm_append_lead_note(

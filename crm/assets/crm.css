@@ -5359,6 +5359,24 @@ textarea:focus {
   text-decoration: none;
 }
 
+.whatsapp-crm-page .wa-received-file-unavailable {
+  display: grid;
+  gap: 5px;
+  max-width: min(420px, 100%);
+  padding: 10px 12px;
+  color: #475569;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
+.whatsapp-crm-page .wa-received-file-unavailable strong {
+  color: #0f172a;
+  font-size: 0.86rem;
+}
+
 .whatsapp-crm-page .wa-message footer {
   display: flex;
   justify-content: flex-end;

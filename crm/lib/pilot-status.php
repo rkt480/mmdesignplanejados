@@ -1014,21 +1014,79 @@ function pilot_status_download_inbound_media(string $mediaId, string $phoneNumbe
     // Meta attachment URLs sent in a webhook are not browser-accessible and
     // expire after a few minutes. Pilot Status exposes the authenticated
     // download endpoint precisely to retrieve the original binary in time.
-    $result = pilot_status_api_request(
-        '/media/' . rawurlencode($mediaId),
-        'GET',
-        ['phoneNumberId' => $phoneNumberId],
-        30
-    );
+    $settings = pilot_status_settings();
+    $apiKey = trim((string) ($settings['api_key'] ?? ''));
 
-    if (($result['ok'] ?? false) !== true || !is_array($result['response'] ?? null)) {
+    if ($apiKey === '') {
+        return ['ok' => false, 'error' => 'API key da Pilot Status não configurada.'];
+    }
+
+    $url = rtrim((string) ($settings['base_url'] ?? ''), '/')
+        . '/media/' . rawurlencode($mediaId)
+        . '?' . http_build_query(['phoneNumberId' => $phoneNumberId]);
+    $ch = curl_init($url);
+
+    if ($ch === false) {
+        return ['ok' => false, 'error' => 'Não foi possível iniciar o download do anexo.'];
+    }
+
+    // The provider returns a base64 data URI inside JSON. Bound the response
+    // while receiving it so a multi-hundred-megabyte SketchUp project cannot
+    // exhaust PHP memory before the CRM can report that it is too large.
+    $responseBody = '';
+    $responseTooLarge = false;
+    $maxResponseBytes = 37 * 1024 * 1024;
+    curl_setopt_array($ch, [
+        CURLOPT_CUSTOMREQUEST => 'GET',
+        CURLOPT_RETURNTRANSFER => false,
+        CURLOPT_HTTPHEADER => [
+            'Accept: application/json',
+            'x-api-key: ' . $apiKey,
+        ],
+        CURLOPT_TIMEOUT => 30,
+        CURLOPT_WRITEFUNCTION => static function ($handle, string $chunk) use (&$responseBody, &$responseTooLarge, $maxResponseBytes): int {
+            if (strlen($responseBody) + strlen($chunk) > $maxResponseBytes) {
+                $responseTooLarge = true;
+                return 0;
+            }
+
+            $responseBody .= $chunk;
+            return strlen($chunk);
+        },
+    ]);
+
+    $requestResult = curl_exec($ch);
+    $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+    curl_close($ch);
+
+    if ($responseTooLarge) {
         return [
             'ok' => false,
-            'error' => (string) ($result['error'] ?? 'A Pilot Status não retornou a mídia recebida.'),
+            'error' => 'O anexo excede o limite de 25 MB que o CRM consegue copiar para o histórico. Peça ao cliente um link do Google Drive ou OneDrive.',
         ];
     }
 
-    $response = $result['response'];
+    if ($requestResult === false || $curlError !== '') {
+        return [
+            'ok' => false,
+            'error' => $curlError !== '' ? $curlError : 'A Pilot Status não retornou a mídia recebida.',
+        ];
+    }
+
+    $response = json_decode($responseBody, true);
+
+    if ($httpCode < 200 || $httpCode >= 300 || !is_array($response)) {
+        $providerError = is_array($response)
+            ? pilot_status_format_api_error($response, $responseBody)
+            : trim($responseBody);
+
+        return [
+            'ok' => false,
+            'error' => $providerError !== '' ? $providerError : 'A Pilot Status não retornou a mídia recebida.',
+        ];
+    }
+
     $base64 = pilot_status_first_payload_value($response, [['base64'], ['data', 'base64']]);
 
     if ($base64 === '') {
@@ -1040,6 +1098,7 @@ function pilot_status_download_inbound_media(string $mediaId, string $phoneNumbe
         'base64' => $base64,
         'mime_type' => pilot_status_normalize_media_mime_type(pilot_status_first_payload_value($response, [['mimeType'], ['mime_type'], ['data', 'mimeType'], ['data', 'mime_type']])),
         'filename' => pilot_status_first_payload_value($response, [['fileName'], ['file_name'], ['data', 'fileName'], ['data', 'file_name']]),
+        'size' => (int) pilot_status_first_payload_value($response, [['fileSize'], ['file_size'], ['size'], ['data', 'fileSize'], ['data', 'file_size'], ['data', 'size']]),
     ];
 }
 
@@ -1085,9 +1144,10 @@ function pilot_status_store_inbound_media_data_uri(string $dataUri, string $mime
         $mimeType = 'application/octet-stream';
     }
 
-    // Do not derive the extension from the remote filename. Files are served
-    // publicly, so only a MIME-mapped extension can reach this directory.
-    $extension = pilot_status_media_extension($mimeType, '');
+    // Keep a safe extension such as .skp for the download name. The random
+    // storage basename and executable-extension denylist prevent path or
+    // script injection through a remote filename.
+    $extension = pilot_status_media_extension($mimeType, $fileName);
     $storedName = bin2hex(random_bytes(16)) . '.' . $extension;
     $storedPath = $directory . '/' . $storedName;
 
@@ -1157,7 +1217,8 @@ function pilot_status_media_extension(string $mimeType, string $fileName): strin
 
     $extension = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
 
-    if (preg_match('/^[a-z0-9]{1,8}$/', $extension) === 1) {
+    if (preg_match('/^[a-z0-9]{1,8}$/', $extension) === 1
+        && !in_array($extension, ['php', 'phtml', 'phar', 'cgi', 'pl', 'py', 'jsp', 'asp', 'sh'], true)) {
         return $extension;
     }
 
@@ -1180,6 +1241,7 @@ function pilot_status_media_extension(string $mimeType, string $fileName): strin
         'application/vnd.ms-excel' => 'xls',
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document' => 'docx',
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' => 'xlsx',
+        'application/vnd.sketchup.skp', 'application/x-sketchup', 'model/vnd.skp' => 'skp',
         'text/csv' => 'csv',
         'text/plain' => 'txt',
         default => 'bin',
@@ -1699,18 +1761,41 @@ function pilot_status_extract_incoming_media(array $payload): array
     if ($type !== '') {
         $mimePaths[] = [$type, 'mime_type'];
         $mimePaths[] = [$type, 'mimeType'];
+        $mimePaths[] = [$type, 'mimetype'];
+        $mimePaths[] = [$type . 'Message', 'mime_type'];
+        $mimePaths[] = [$type . 'Message', 'mimeType'];
+        $mimePaths[] = [$type . 'Message', 'mimetype'];
         $mimePaths[] = ['message', $type . 'Message', 'mimetype'];
         $mimePaths[] = ['message', $type . 'Message', 'mimeType'];
+        $mimePaths[] = ['message', $type . 'Message', 'mime_type'];
         $mimePaths[] = ['data', 'message', $type . 'Message', 'mimetype'];
         $mimePaths[] = ['data', 'message', $type . 'Message', 'mimeType'];
+        $mimePaths[] = ['data', 'message', $type . 'Message', 'mime_type'];
         $captionPaths[] = [$type, 'caption'];
+        $captionPaths[] = [$type . 'Message', 'caption'];
         $filenamePaths[] = [$type, 'filename'];
+        $filenamePaths[] = [$type, 'fileName'];
+        $filenamePaths[] = [$type, 'file_name'];
+        $filenamePaths[] = [$type . 'Message', 'filename'];
+        $filenamePaths[] = [$type . 'Message', 'fileName'];
+        $filenamePaths[] = [$type . 'Message', 'file_name'];
         $captionPaths[] = ['message', $type . 'Message', 'caption'];
         $captionPaths[] = ['data', 'message', $type . 'Message', 'caption'];
         $mediaIdPaths[] = [$type, 'id'];
+        $mediaIdPaths[] = [$type . 'Message', 'id'];
         $mediaIdPaths[] = ['message', $type . 'Message', 'id'];
         $mediaIdPaths[] = ['data', 'message', $type . 'Message', 'id'];
     }
+
+    $fileSize = (int) pilot_status_first_payload_value($payload, [
+        ['fileSize'], ['file_size'], ['fileLength'], ['file_length'], ['size'],
+        ['media', 'fileSize'], ['media', 'file_size'], ['media', 'fileLength'], ['media', 'file_length'],
+        ['data', 'fileSize'], ['data', 'file_size'], ['data', 'fileLength'], ['data', 'file_length'],
+        ['message', $type . 'Message', 'fileSize'], ['message', $type . 'Message', 'file_size'],
+        ['message', $type . 'Message', 'fileLength'], ['message', $type . 'Message', 'file_length'],
+        ['data', 'message', $type . 'Message', 'fileSize'], ['data', 'message', $type . 'Message', 'file_size'],
+        ['data', 'message', $type . 'Message', 'fileLength'], ['data', 'message', $type . 'Message', 'file_length'],
+    ]);
 
     $temporaryUrl = $nativeUrl !== '' && $url === $nativeUrl;
 
@@ -1721,6 +1806,7 @@ function pilot_status_extract_incoming_media(array $payload): array
         'caption' => pilot_status_first_payload_value($payload, $captionPaths),
         'filename' => pilot_status_first_payload_value($payload, $filenamePaths),
         'id' => pilot_status_first_payload_value($payload, $mediaIdPaths),
+        'file_size' => max(0, $fileSize),
         'phone_number_id' => pilot_status_first_payload_value($payload, [
             ['_metadata', 'phone_number_id'],
             ['metadata', 'phone_number_id'],
@@ -2066,9 +2152,15 @@ function pilot_status_extract_incoming_messages(array $payload): array
             continue;
         }
 
-        $mediaUrl = trim((string) (($incoming['media']['url'] ?? '')));
+        $media = is_array($incoming['media'] ?? null) ? $incoming['media'] : [];
+        $mediaUrl = trim((string) ($media['url'] ?? ''));
+        $mediaId = trim((string) ($media['id'] ?? ''));
+        $mediaType = trim((string) ($media['type'] ?? ''));
 
-        if (trim((string) ($incoming['text'] ?? '')) === '' && $mediaUrl === '') {
+        if (trim((string) ($incoming['text'] ?? '')) === ''
+            && $mediaUrl === ''
+            && $mediaId === ''
+            && $mediaType === '') {
             continue;
         }
 

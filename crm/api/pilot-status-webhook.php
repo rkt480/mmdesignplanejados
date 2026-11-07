@@ -181,11 +181,14 @@ foreach ($incomingMessages as $incoming) {
     $mediaUrl = trim((string) ($media['url'] ?? ''));
     $incomingMessageId = trim((string) ($incoming['id'] ?? ''));
     $incomingMediaId = trim((string) ($media['id'] ?? ''));
+    $incomingMediaType = trim((string) ($media['type'] ?? ''));
+    $hasIncomingMedia = $incomingMediaId !== '' || $mediaUrl !== '' || $incomingMediaType !== '';
     $replyContext = is_array($incoming['reply_context'] ?? null) ? $incoming['reply_context'] : [];
     $name = trim((string) ($incoming['name'] ?? ''));
     $profilePictureUrl = crm_normalize_profile_picture_url((string) ($incoming['profile_picture_url'] ?? ''));
 
-    if ($mediaUrl !== '' && ($media['temporary_url'] ?? false) === true) {
+    if ($hasIncomingMedia && $incomingMediaId !== ''
+        && (trim((string) ($media['phone_number_id'] ?? '')) !== '' || $mediaUrl === '')) {
         $downloadedMedia = pilot_status_download_inbound_media(
             (string) ($media['id'] ?? ''),
             (string) ($media['phone_number_id'] ?? '')
@@ -203,7 +206,9 @@ foreach ($incomingMessages as $incoming) {
             $mediaUrl = (string) ($storedMedia['url'] ?? '');
             $media['mime_type'] = (string) ($storedMedia['mime_type'] ?? ($media['mime_type'] ?? ''));
             $media['filename'] = (string) ($storedMedia['filename'] ?? ($media['filename'] ?? ''));
+            $media['file_size'] = (int) ($storedMedia['size'] ?? ($downloadedMedia['size'] ?? ($media['file_size'] ?? 0)));
         } else {
+            $media['download_error'] = (string) ($storedMedia['error'] ?? 'Não foi possível baixar o anexo pelo provedor. Peça ao cliente um link do Google Drive ou OneDrive.');
             pilot_status_log('Falha ao baixar mídia nativa recebida.', [
                 'message_id' => (string) ($incoming['id'] ?? ''),
                 'type' => (string) ($media['type'] ?? ''),
@@ -212,7 +217,7 @@ foreach ($incomingMessages as $incoming) {
         }
     }
 
-    if ($whatsapp === '' || ($message === '' && $mediaUrl === '')) {
+    if ($whatsapp === '' || ($message === '' && !$hasIncomingMedia)) {
         continue;
     }
 
@@ -234,7 +239,7 @@ foreach ($incomingMessages as $incoming) {
         // Media is stored as a structured conversation note below. Keeping
         // it out of the lead's initial text lets the chat render the actual
         // image, audio player or file link instead of a plain placeholder.
-        'message' => $mediaUrl === '' ? $message : '',
+        'message' => $hasIncomingMedia ? '' : $message,
         'page' => 'Pilot Status',
         'utm_source' => (string) ($attribution['utm_source'] ?? '') ?: 'pilot_status',
         'utm_medium' => (string) ($attribution['utm_medium'] ?? '') ?: 'whatsapp',
@@ -288,7 +293,7 @@ foreach ($incomingMessages as $incoming) {
             crm_update_lead_profile_picture((string) $lead['id'], $profilePictureUrl);
         }
 
-        if ($mediaUrl !== '') {
+        if ($hasIncomingMedia) {
             $dedupeMarker = $incomingMessageId !== ''
                 ? '"crm_message_id":' . json_encode($incomingMessageId, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
                 : ($incomingMediaId !== ''
@@ -310,10 +315,15 @@ foreach ($incomingMessages as $incoming) {
             }
 
             $media['url'] = $mediaUrl;
-            $media['type'] = trim((string) ($media['type'] ?? ''));
+            $media['type'] = $incomingMediaType;
             $media['caption'] = trim((string) ($media['caption'] ?? '')) ?: $message;
             $media['mime_type'] = trim((string) ($media['mime_type'] ?? ''));
             $media['filename'] = trim((string) ($media['filename'] ?? ''));
+            $media['file_size'] = max(0, (int) ($media['file_size'] ?? 0));
+
+            if ($mediaUrl === '' && trim((string) ($media['download_error'] ?? '')) === '') {
+                $media['download_error'] = 'O arquivo chegou pelo WhatsApp, mas não foi disponibilizado para download no CRM. Peça ao cliente um link do Google Drive ou OneDrive.';
+            }
 
             if ($incomingMessageId !== '') {
                 $media['crm_message_id'] = $incomingMessageId;
@@ -332,9 +342,12 @@ foreach ($incomingMessages as $incoming) {
                 );
 
                 if (($leadResult['created'] ?? false) === false) {
+                    $notificationText = $message !== ''
+                        ? $message
+                        : (trim((string) ($media['filename'] ?? '')) ?: 'Anexo recebido pelo WhatsApp');
                     crm_notify_lead_reply_push(
                         $lead,
-                        $message,
+                        $notificationText,
                         $incomingMessageId !== '' ? $incomingMessageId : $incomingMediaId,
                         (string) ($incoming['timestamp'] ?? '')
                     );

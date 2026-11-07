@@ -195,7 +195,7 @@ if ($hasMedia) {
         $mediaType = 'video';
     } elseif ($isVideoDocument || str_starts_with($mimeType, 'video/')) {
         $mediaType = 'document';
-    } elseif (in_array($mimeType, $documentTypes, true)) {
+    } elseif ($extension === 'skp' || in_array($mimeType, $documentTypes, true)) {
         $mediaType = 'document';
     } else {
         header('Location: ' . $redirect . '&send_error=' . rawurlencode('Envie uma imagem, áudio, vídeo MP4/3GP/MOV ou documento compatível. O Pilot Status converte vídeos MOV para MP4 automaticamente.'));
