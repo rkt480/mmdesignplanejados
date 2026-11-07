@@ -6,7 +6,7 @@ require_once __DIR__ . '/lib/project-uploads.php';
 
 crm_send_security_headers();
 header('Cache-Control: no-store');
-$token = (string) ($_GET['token'] ?? '');
+$token = (string) ($_GET['token'] ?? $_GET['t'] ?? '');
 $upload = crm_project_upload_find_token($token);
 $available = is_array($upload)
     && in_array((string) $upload['status'], ['open', 'uploading'], true)

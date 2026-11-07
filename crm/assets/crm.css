@@ -5385,10 +5385,11 @@ textarea:focus {
 .whatsapp-crm-page .wa-project-heading,
 .whatsapp-crm-page .wa-project-link-row {
   display: grid;
-  gap: 8px;
+  gap: 14px;
 }
 
 .whatsapp-crm-page .wa-project-heading h3 { margin: 0 0 4px; }
+.whatsapp-crm-page .wa-project-heading form { margin: 4px 0 0; }
 .whatsapp-crm-page .wa-project-heading small,
 .whatsapp-crm-page .wa-project-item small { display: block; color: #64748b; font-size: 0.78rem; line-height: 1.4; }
 .whatsapp-crm-page .wa-project-heading button,
@@ -5404,7 +5405,7 @@ textarea:focus {
 }
 .whatsapp-crm-page .wa-project-item { min-width: 0; padding: 12px; border: 1px solid #e0e9e6; border-radius: 12px; background: #f7fbfa; overflow-wrap: anywhere; }
 .whatsapp-crm-page .wa-project-item strong { display: block; margin-bottom: 3px; }
-.whatsapp-crm-page .wa-project-link-row { margin-top: 10px; }
+.whatsapp-crm-page .wa-project-link-row { margin-top: 14px; gap: 12px; }
 .whatsapp-crm-page .wa-project-link-row input { width: 100%; min-width: 0; padding: 10px; border: 1px solid #cbd5e1; border-radius: 9px; background: #fff; }
 .whatsapp-crm-page .wa-project-item a { display: inline-block; margin-top: 5px; color: #075985; font-weight: 700; }
 

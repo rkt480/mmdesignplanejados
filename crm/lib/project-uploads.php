@@ -42,12 +42,12 @@ function crm_project_upload_app_url(): string
 
 function crm_project_upload_link(array $upload): string
 {
-    return crm_project_upload_app_url() . '/project-upload.php?token=' . rawurlencode((string) $upload['token']);
+    return crm_project_upload_app_url() . '/p.php?t=' . rawurlencode((string) $upload['token']);
 }
 
 function crm_project_upload_create(string $leadId, int $userId): array
 {
-    $token = bin2hex(random_bytes(32));
+    $token = rtrim(strtr(base64_encode(random_bytes(18)), '+/', '-_'), '=');
     $now = date('Y-m-d H:i:s');
     $expires = date('Y-m-d H:i:s', time() + 7 * 86400);
     $stmt = crm_db()->prepare(
@@ -67,11 +67,11 @@ function crm_project_upload_create(string $leadId, int $userId): array
 
 function crm_project_upload_find_token(string $token): ?array
 {
-    if (preg_match('/^[a-f0-9]{64}$/D', $token) !== 1) {
+    if (preg_match('/^(?:[a-f0-9]{64}|[A-Za-z0-9_-]{24})$/D', $token) !== 1) {
         return null;
     }
 
-    $stmt = crm_db()->prepare('SELECT * FROM project_uploads WHERE token = :token LIMIT 1');
+    $stmt = crm_db()->prepare('SELECT * FROM project_uploads WHERE BINARY token = :token LIMIT 1');
     $stmt->execute(['token' => $token]);
     $row = $stmt->fetch();
     return is_array($row) ? $row : null;
