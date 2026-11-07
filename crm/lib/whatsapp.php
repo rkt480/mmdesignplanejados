@@ -143,6 +143,31 @@ function crm_whatsapp_message_ids_marker(array $messageIds): string
 }
 
 /**
+ * Keeps status identifiers that arrived before the send response was saved.
+ * The conversation parser only attaches this group after an exact overlap
+ * with a persisted message ID identifies one message.
+ *
+ * @param list<string> $messageIds
+ */
+function crm_whatsapp_pending_message_ids_marker(array $messageIds): string
+{
+    $ids = [];
+    foreach ($messageIds as $messageId) {
+        $messageId = trim((string) $messageId);
+        if ($messageId !== '' && !in_array($messageId, $ids, true)) {
+            $ids[] = $messageId;
+        }
+    }
+
+    if ($ids === []) {
+        return '';
+    }
+
+    $json = json_encode(['ids' => $ids], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    return is_string($json) && $json !== '' ? "\n[crm_pending_message_ids]" . $json : '';
+}
+
+/**
  * Adds all response identifiers to the structured copy of a media message.
  *
  * @param list<string> $messageIds

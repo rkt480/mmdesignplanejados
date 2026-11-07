@@ -346,6 +346,39 @@ function whatsapp_page_message_ids_from_text(string $text): array
     return $ids;
 }
 
+/**
+ * @param list<string> $blocks
+ * @return list<list<string>>
+ */
+function whatsapp_page_pending_message_id_groups(array $blocks): array
+{
+    $groups = [];
+    foreach ($blocks as $block) {
+        if (preg_match('/^\[crm_pending_message_ids\]([^\r\n]+)/u', trim((string) $block), $match) !== 1) {
+            continue;
+        }
+        $decoded = json_decode((string) $match[1], true);
+        if (!is_array($decoded) || !is_array($decoded['ids'] ?? null)) {
+            continue;
+        }
+        $ids = [];
+        foreach ($decoded['ids'] as $candidate) {
+            if (!is_scalar($candidate)) {
+                continue;
+            }
+            $candidate = trim((string) $candidate);
+            if ($candidate !== '' && !in_array($candidate, $ids, true)) {
+                $ids[] = $candidate;
+            }
+        }
+        if ($ids !== []) {
+            $groups[] = $ids;
+        }
+    }
+
+    return $groups;
+}
+
 function whatsapp_page_delivery_label(array $lead, string $messageId, string $block = ''): string
 {
     $notes = (string) ($lead['notes'] ?? '');
@@ -703,7 +736,7 @@ function whatsapp_page_message_provider(string $providerLabel, string $fallback 
 function whatsapp_page_is_technical_delivery_note(string $text): bool
 {
     return preg_match(
-        '/^(?:\[crm_message_aliases\]|\[crm_message_ids\]|Pilot Status evento:|wamid\.|WhatsApp confirmou (?:o envio|a entrega|a leitura)|Status inicial:|Pilot Status ID:)/iu',
+        '/^(?:\[crm_message_aliases\]|\[crm_message_ids\]|\[crm_pending_message_ids\]|Pilot Status evento:|wamid\.|WhatsApp confirmou (?:o envio|a entrega|a leitura)|Status inicial:|Pilot Status ID:)/iu',
         trim($text)
     ) === 1;
 }
@@ -717,7 +750,7 @@ function whatsapp_page_is_technical_delivery_note(string $text): bool
  */
 function whatsapp_page_note_blocks(string $notes): array
 {
-    $recordStart = '(?:\[crm_message_aliases\]|Resposta automática fora do horário enviada via|Observação do CRM em|Mensagem recebida pelo provedor anterior|Mensagem recebida pela Meta Cloud API|Mensagem recebida pela Pilot Status|Mídia recebida pela Pilot Status|Mídia enviada (?:via|pelo)|Mensagem enviada (?:via|pelo)|Template .+ enviado (?:automaticamente )?via|Falha ao enviar via|Pilot Status evento:)';
+    $recordStart = '(?:\[crm_message_aliases\]|\[crm_pending_message_ids\]|Resposta automática fora do horário enviada via|Observação do CRM em|Mensagem recebida pelo provedor anterior|Mensagem recebida pela Meta Cloud API|Mensagem recebida pela Pilot Status|Mídia recebida pela Pilot Status|Mídia enviada (?:via|pelo)|Mensagem enviada (?:via|pelo)|Template .+ enviado (?:automaticamente )?via|Falha ao enviar via|Pilot Status evento:)';
     $blocks = [];
 
     // A resposta fora do horário pode conter parágrafos separados por linhas
@@ -911,6 +944,7 @@ function whatsapp_page_messages_for_lead(array $lead): array
     if ($notes !== '') {
         $noteBlocks = whatsapp_page_note_blocks($notes);
         $messageAliasRegistry = whatsapp_page_message_alias_registry($noteBlocks);
+        $pendingMessageIdGroups = whatsapp_page_pending_message_id_groups($noteBlocks);
         $outgoingHistoryMinuteKeys = whatsapp_page_outgoing_history_minute_keys($noteBlocks);
 
         foreach ($noteBlocks as $block) {
@@ -1189,6 +1223,37 @@ function whatsapp_page_messages_for_lead(array $lead): array
         }
     }
     unset($message);
+
+    // A status callback can race the send-response persistence. Keep the IDs
+    // together until one exact identifier overlaps a single CRM message, then
+    // expose that callback's other IDs as aliases of that message.
+    foreach ($pendingMessageIdGroups ?? [] as $pendingIds) {
+        $matchingIndexes = [];
+        foreach ($messages as $messageIndex => $candidateMessage) {
+            if (array_intersect($pendingIds, whatsapp_page_message_id_candidates($candidateMessage)) !== []) {
+                $matchingIndexes[] = $messageIndex;
+            }
+        }
+
+        if (count($matchingIndexes) !== 1) {
+            continue;
+        }
+
+        $messageIndex = $matchingIndexes[0];
+        $messageIds = whatsapp_page_message_id_candidates($messages[$messageIndex]);
+        foreach ($pendingIds as $pendingId) {
+            if (!in_array($pendingId, $messageIds, true)) {
+                $messageIds[] = $pendingId;
+            }
+        }
+        $messages[$messageIndex]['message_ids'] = $messageIds;
+        if (($messages[$messageIndex]['direction'] ?? '') === 'outgoing') {
+            $deliveryLabel = whatsapp_page_delivery_label_for_message_ids($lead, $messageIds);
+            if ($deliveryLabel !== 'Enviada') {
+                $messages[$messageIndex]['label'] = $deliveryLabel;
+            }
+        }
+    }
 
     // A legacy phone message can be stored as a plain CRM observation without
     // a provider prefix or message ID. When it sits between two outgoing

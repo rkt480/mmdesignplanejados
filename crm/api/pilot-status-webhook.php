@@ -101,6 +101,7 @@ if ($delivery['event'] !== '' && $outgoingMessages === []) {
         exit;
     }
 
+    $messageLinkResolved = false;
     if ($deliveryMessageIds !== []) {
         $leadMessages = whatsapp_page_messages_for_lead($lead);
         $matchedMessage = whatsapp_page_find_message_by_ids($leadMessages, $deliveryMessageIds);
@@ -116,6 +117,7 @@ if ($delivery['event'] !== '' && $outgoingMessages === []) {
             if ($baseMessageId !== '') {
                 crm_append_whatsapp_message_aliases((string) $lead['id'], $baseMessageId, $deliveryMessageIds);
                 $lead = crm_find_lead((string) $lead['id']) ?? $lead;
+                $messageLinkResolved = true;
             }
         }
     }
@@ -143,9 +145,13 @@ if ($delivery['event'] !== '' && $outgoingMessages === []) {
     };
 
     crm_update_whatsapp_status((string) $lead['id'], $status, $delivery['event'] === 'message.failed' ? $delivery['error'] : null);
+    $eventNote = $eventMarker . ' em ' . date('d/m/Y H:i:s') . ":\n" . $statusText;
+    if (!$messageLinkResolved) {
+        $eventNote .= crm_whatsapp_pending_message_ids_marker($deliveryMessageIds);
+    }
     crm_append_lead_note(
         (string) $lead['id'],
-        $eventMarker . ' em ' . date('d/m/Y H:i:s') . ":\n" . $statusText
+        $eventNote
     );
 
     echo json_encode(['ok' => true, 'processed' => true, 'lead_id' => $lead['id'], 'status' => $status]);
