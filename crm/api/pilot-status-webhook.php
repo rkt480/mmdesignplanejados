@@ -74,11 +74,23 @@ $delivery = pilot_status_extract_delivery_event($payload);
 
 if ($delivery['event'] !== '' && $outgoingMessages === []) {
     $messageId = (string) $delivery['id'];
-    $lead = $messageId !== '' ? crm_find_lead_by_pilot_status_message_id($messageId) : null;
+    $deliveryMessageIds = is_array($delivery['message_ids'] ?? null) ? $delivery['message_ids'] : [];
+    if ($messageId !== '' && !in_array($messageId, $deliveryMessageIds, true)) {
+        array_unshift($deliveryMessageIds, $messageId);
+    }
+    $lead = $deliveryMessageIds !== []
+        ? crm_find_lead_by_whatsapp_message_ids($deliveryMessageIds)
+        : null;
 
-    // Official Meta status payloads identify the message with a WhatsApp
-    // wamid, while the CRM stores Pilot Status' internal message ID. When the
-    // IDs differ, the recipient lets us still update the affected conversation.
+    // Keep the legacy Pilot Status lookup for records created before message
+    // aliases were persisted.
+    if ($lead === null && $messageId !== '') {
+        $lead = crm_find_lead_by_pilot_status_message_id($messageId);
+    }
+
+    // Recipient lookup still updates conversation-level status for a webhook
+    // that carries no identifier stored by the CRM. It is never used to bind
+    // the new ID to a particular media message.
     if ($lead === null && trim((string) ($delivery['destination'] ?? '')) !== '') {
         $lead = crm_find_lead_by_whatsapp((string) $delivery['destination']);
     }
@@ -87,6 +99,25 @@ if ($delivery['event'] !== '' && $outgoingMessages === []) {
         pilot_status_log('Evento de entrega sem lead correspondente.', ['delivery' => $delivery]);
         echo json_encode(['ok' => true, 'processed' => false, 'reason' => 'Mensagem não vinculada ao CRM.']);
         exit;
+    }
+
+    if ($deliveryMessageIds !== []) {
+        $leadMessages = whatsapp_page_messages_for_lead($lead);
+        $matchedMessage = whatsapp_page_find_message_by_ids($leadMessages, $deliveryMessageIds);
+        if (is_array($matchedMessage)) {
+            $matchedIds = whatsapp_page_message_id_candidates($matchedMessage);
+            $baseMessageId = '';
+            foreach ($matchedIds as $candidateId) {
+                if (crm_lead_has_whatsapp_message_id($lead, $candidateId)) {
+                    $baseMessageId = $candidateId;
+                    break;
+                }
+            }
+            if ($baseMessageId !== '') {
+                crm_append_whatsapp_message_aliases((string) $lead['id'], $baseMessageId, $deliveryMessageIds);
+                $lead = crm_find_lead((string) $lead['id']) ?? $lead;
+            }
+        }
     }
 
     $notes = (string) ($lead['notes'] ?? '');

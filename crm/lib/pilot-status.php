@@ -711,6 +711,44 @@ function pilot_status_extract_delivery_event(array $payload): array
         ['data', 'type'],
     ])));
     $deliveryEvents = ['message.sent', 'message.delivered', 'message.read', 'message.failed'];
+    $collectMessageIds = static function (array $records) use (&$collectMessageIds): array {
+        $ids = [];
+        $keys = ['id', 'internalMessageId', 'internal_message_id', 'message_id', 'messageId', 'correlationId', 'correlation_id', 'biz_opaque_callback_data', 'callbackData', 'callback_data', 'opaqueCallbackData'];
+        foreach ($records as $record) {
+            if (!is_array($record)) {
+                continue;
+            }
+            foreach ($keys as $key) {
+                $value = $record[$key] ?? null;
+                if (!is_scalar($value)) {
+                    continue;
+                }
+                $value = trim((string) $value);
+                if ($value !== '' && !in_array($value, $ids, true)) {
+                    $ids[] = $value;
+                }
+            }
+            foreach (['message', 'key'] as $nestedKey) {
+                if (is_array($record[$nestedKey] ?? null)) {
+                    foreach ($collectMessageIds([$record[$nestedKey]]) as $value) {
+                        if (!in_array($value, $ids, true)) {
+                            $ids[] = $value;
+                        }
+                    }
+                }
+            }
+            foreach (is_array($record['statuses'] ?? null) ? $record['statuses'] : [] as $status) {
+                if (is_array($status)) {
+                    foreach ($collectMessageIds([$status]) as $value) {
+                        if (!in_array($value, $ids, true)) {
+                            $ids[] = $value;
+                        }
+                    }
+                }
+            }
+        }
+        return $ids;
+    };
 
     if (in_array($event, $deliveryEvents, true)) {
         $data = is_array($payload['data'] ?? null) ? $payload['data'] : $payload;
@@ -760,10 +798,20 @@ function pilot_status_extract_delivery_event(array $payload): array
             ['phoneNumber'],
             ['phone_number'],
         ]));
+        $messageIds = $collectMessageIds([$data]);
+        $correlationId = trim((string) pilot_status_first_payload_value($data, [
+            ['correlationId'], ['correlation_id'], ['message', 'correlationId'], ['message', 'correlation_id'],
+        ]));
+        $opaqueCallbackData = trim((string) pilot_status_first_payload_value($data, [
+            ['biz_opaque_callback_data'], ['message', 'biz_opaque_callback_data'],
+        ]));
 
         return [
             'event' => $event,
             'id' => $messageId,
+            'message_ids' => $messageIds,
+            'correlation_id' => $correlationId,
+            'biz_opaque_callback_data' => $opaqueCallbackData,
             'destination' => $destination,
             'error' => implode(' | ', array_values(array_unique($errorParts))),
         ];
@@ -809,6 +857,9 @@ function pilot_status_extract_delivery_event(array $payload): array
                 return [
                     'event' => $mappedEvent,
                     'id' => trim((string) ($status['id'] ?? '')),
+                    'message_ids' => $collectMessageIds([$status]),
+                    'correlation_id' => trim((string) ($status['correlationId'] ?? $status['correlation_id'] ?? '')),
+                    'biz_opaque_callback_data' => trim((string) ($status['biz_opaque_callback_data'] ?? '')),
                     'destination' => trim((string) ($status['recipient_id'] ?? '')),
                     'error' => implode(' | ', array_values(array_unique($errorParts))),
                 ];
@@ -816,7 +867,7 @@ function pilot_status_extract_delivery_event(array $payload): array
         }
     }
 
-    return ['event' => '', 'id' => '', 'destination' => '', 'error' => ''];
+    return ['event' => '', 'id' => '', 'message_ids' => [], 'correlation_id' => '', 'biz_opaque_callback_data' => '', 'destination' => '', 'error' => ''];
 }
 
 function pilot_status_send_text(string $number, string $text): array

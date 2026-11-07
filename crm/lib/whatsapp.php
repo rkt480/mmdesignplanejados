@@ -54,6 +54,9 @@ function crm_whatsapp_response_message_id(array $result): string
             is_array($response['data'] ?? null) && is_array($response['data']['messages'] ?? null)
                 ? ($response['data']['messages'][0]['id'] ?? null)
                 : null,
+            $response['correlationId'] ?? null,
+            $response['correlation_id'] ?? null,
+            $response['biz_opaque_callback_data'] ?? null,
         ];
     }
 
@@ -64,6 +67,100 @@ function crm_whatsapp_response_message_id(array $result): string
     }
 
     return '';
+}
+
+/**
+ * Collects the identifiers Pilot Status or Meta may use for one sent message.
+ * Status webhooks can expose a different WhatsApp ID from the send response,
+ * so callers persist the full set with the CRM message.
+ *
+ * @return list<string>
+ */
+function crm_whatsapp_response_message_ids(array $result): array
+{
+    $response = $result['response'] ?? null;
+
+    if (!is_array($response)) {
+        return [];
+    }
+
+    $ids = [];
+    $idKeys = [
+        'id', 'message_id', 'messageId', 'internalMessageId', 'internal_message_id',
+        'correlationId', 'correlation_id', 'biz_opaque_callback_data', 'callbackData', 'callback_data', 'opaqueCallbackData',
+    ];
+    $visit = static function (mixed $value, int $depth = 0) use (&$visit, &$ids, $idKeys): void {
+        if ($depth > 8 || !is_array($value)) {
+            return;
+        }
+
+        foreach ($value as $key => $child) {
+            if (in_array((string) $key, $idKeys, true) && is_scalar($child)) {
+                $id = trim((string) $child);
+                if ($id !== '' && !in_array($id, $ids, true)) {
+                    $ids[] = $id;
+                }
+            }
+
+            if (is_array($child) && in_array((string) $key, ['data', 'message', 'messages', 'statuses', 'key'], true)) {
+                $hasIdentifier = array_intersect(array_keys($child), $idKeys) !== [];
+                if ($hasIdentifier || in_array((string) $key, ['data', 'message', 'key'], true)) {
+                    $visit($child, $depth + 1);
+                } else {
+                    foreach ($child as $record) {
+                        if (is_array($record)) {
+                            $visit($record, $depth + 1);
+                        }
+                    }
+                }
+            }
+        }
+    };
+    $visit($response);
+
+    return $ids;
+}
+
+/**
+ * @param list<string> $messageIds
+ */
+function crm_whatsapp_message_ids_marker(array $messageIds): string
+{
+    $ids = [];
+    foreach ($messageIds as $messageId) {
+        $messageId = trim((string) $messageId);
+        if ($messageId !== '' && !in_array($messageId, $ids, true)) {
+            $ids[] = $messageId;
+        }
+    }
+
+    if ($ids === []) {
+        return '';
+    }
+
+    $json = json_encode(['ids' => $ids], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    return is_string($json) && $json !== '' ? "\n[crm_message_ids]" . $json : '';
+}
+
+/**
+ * Adds all response identifiers to the structured copy of a media message.
+ *
+ * @param list<string> $messageIds
+ */
+function crm_whatsapp_set_media_message_ids(array &$media, array $messageIds): void
+{
+    $ids = [];
+    foreach ($messageIds as $messageId) {
+        $messageId = trim((string) $messageId);
+        if ($messageId !== '' && !in_array($messageId, $ids, true)) {
+            $ids[] = $messageId;
+        }
+    }
+
+    if ($ids !== []) {
+        $media['crm_message_ids'] = $ids;
+        $media['crm_message_id'] = (string) ($media['crm_message_id'] ?? $ids[0]);
+    }
 }
 
 function crm_whatsapp_after_hours_settings(): array
@@ -186,6 +283,7 @@ function crm_whatsapp_send_after_hours_reply(
         if ($sentMessageId !== '') {
             $messageIdMarker .= "\nCRM message ID: " . $sentMessageId;
         }
+        $messageIdMarker .= crm_whatsapp_message_ids_marker(crm_whatsapp_response_message_ids($result));
         $queuedLabel = $provider === 'pilot_status' ? ' (aceita pelo provedor)' : '';
         $note = 'Resposta automática fora do horário enviada via '
             . crm_whatsapp_provider_label($provider)
@@ -452,6 +550,7 @@ function crm_whatsapp_send_rd_webhook_template(array $lead, string $eventKey, ?a
     if ($messageId !== '') {
         $description .= "\nCRM message ID: " . $messageId;
     }
+    $description .= crm_whatsapp_message_ids_marker(crm_whatsapp_response_message_ids($result));
 
     try {
         crm_append_lead_note($leadId, $description);
@@ -632,6 +731,7 @@ function crm_record_followup_template_send(array $queueItem, array $template, ar
     if ($sentMessageId !== '') {
         $note .= "\nCRM message ID: " . $sentMessageId;
     }
+    $note .= crm_whatsapp_message_ids_marker(crm_whatsapp_response_message_ids($result));
 
     try {
         crm_append_lead_note((string) ($queueItem['lead_id'] ?? ''), $note);
@@ -652,6 +752,7 @@ function crm_record_followup_text_send(array $queueItem, array $result = []): vo
     if ($sentMessageId !== '') {
         $note .= "\nCRM message ID: " . $sentMessageId;
     }
+    $note .= crm_whatsapp_message_ids_marker(crm_whatsapp_response_message_ids($result));
 
     try {
         crm_append_lead_note((string) ($queueItem['lead_id'] ?? ''), $note);

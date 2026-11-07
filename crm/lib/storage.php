@@ -2855,18 +2855,170 @@ function crm_lead_has_whatsapp_message_id(array $lead, string $messageId): bool
     }
 
     $notes = (string) ($lead['notes'] ?? '');
-    $lineMarker = 'CRM message ID: ' . $messageId;
+    foreach (['CRM message ID: ', 'Pilot Status ID: '] as $linePrefix) {
+        $lineMarker = $linePrefix . $messageId;
+        if (preg_match('/(?:^|\R)' . preg_quote($lineMarker, '/') . '(?:\R|$)/u', $notes) === 1) {
+            return true;
+        }
+    }
 
-    if (preg_match('/(?:^|\R)' . preg_quote($lineMarker, '/') . '(?:\R|$)/u', $notes) === 1) {
+    $jsonMarker = json_encode($messageId, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+    if (!is_string($jsonMarker)) {
+        return false;
+    }
+
+    // Older media notes saved a single ID; newer messages save the full set
+    // returned by the provider. Read both formats and late-bound status aliases.
+    if (str_contains($notes, '"crm_message_id":' . $jsonMarker)) {
         return true;
     }
 
-    // Media messages recorded by older CRM versions use the message ID
-    // inside their structured [crm_media] payload.
-    $jsonMarker = json_encode($messageId, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    foreach (['crm_message_ids', 'crm_message_aliases'] as $marker) {
+        if (preg_match_all('/\[' . preg_quote($marker, '/') . '\]([^\r\n]+)/u', $notes, $matches) < 1) {
+            continue;
+        }
+        foreach ($matches[1] as $encoded) {
+            $metadata = json_decode((string) $encoded, true);
+            if (!is_array($metadata)) {
+                continue;
+            }
+            $ids = is_array($metadata['ids'] ?? null) ? $metadata['ids'] : [];
+            if ($marker === 'crm_message_aliases' && trim((string) ($metadata['for'] ?? '')) === $messageId) {
+                return true;
+            }
+            foreach ($ids as $candidate) {
+                if (is_scalar($candidate) && trim((string) $candidate) === $messageId) {
+                    return true;
+                }
+            }
+        }
+    }
 
-    return is_string($jsonMarker)
-        && str_contains($notes, '"crm_message_id":' . $jsonMarker);
+    // Structured media payloads are preserved in-line inside notes.
+    if (preg_match_all('/\[crm_media\]([^\r\n]+)/u', $notes, $mediaMatches) > 0) {
+        foreach ($mediaMatches[1] as $encoded) {
+            $media = json_decode((string) $encoded, true);
+            if (!is_array($media)) {
+                continue;
+            }
+            foreach (is_array($media['crm_message_ids'] ?? null) ? $media['crm_message_ids'] : [] as $candidate) {
+                if (is_scalar($candidate) && trim((string) $candidate) === $messageId) {
+                    return true;
+                }
+            }
+        }
+    }
+
+    return false;
+}
+
+/**
+ * Find the single lead that already contains at least one exact provider ID.
+ * SQL LIKE narrows the candidate set; the decoded note check above validates
+ * the ID exactly before returning a lead.
+ *
+ * @param list<string> $messageIds
+ */
+function crm_find_lead_by_whatsapp_message_ids(array $messageIds): ?array
+{
+    $ids = [];
+    foreach ($messageIds as $messageId) {
+        $messageId = trim((string) $messageId);
+        if ($messageId !== '' && !in_array($messageId, $ids, true)) {
+            $ids[] = $messageId;
+        }
+    }
+    if ($ids === []) {
+        return null;
+    }
+
+    $conditions = [];
+    $params = [];
+    foreach ($ids as $index => $messageId) {
+        $placeholder = 'message_marker_' . $index;
+        $conditions[] = 'notes LIKE :' . $placeholder;
+        $params[$placeholder] = '%' . $messageId . '%';
+    }
+    $stmt = crm_db()->prepare(
+        'SELECT * FROM leads WHERE ' . implode(' OR ', $conditions) . ' ORDER BY updated_at DESC'
+    );
+    $stmt->execute($params);
+
+    $matches = [];
+    foreach ($stmt->fetchAll() as $lead) {
+        if (!is_array($lead)) {
+            continue;
+        }
+        foreach ($ids as $messageId) {
+            if (crm_lead_has_whatsapp_message_id($lead, $messageId)) {
+                $matches[(string) ($lead['id'] ?? '')] = $lead;
+                break;
+            }
+        }
+    }
+
+    return count($matches) === 1 ? reset($matches) : null;
+}
+
+/**
+ * Store new status or callback IDs against a message already identified by a
+ * known send-response ID. This is metadata only and does not move the message
+ * or refresh the lead's last-activity timestamp.
+ *
+ * @param list<string> $messageIds
+ */
+function crm_append_whatsapp_message_aliases(string $leadId, string $baseMessageId, array $messageIds): bool
+{
+    $baseMessageId = trim($baseMessageId);
+    $lead = crm_find_lead(trim($leadId));
+    if ($baseMessageId === '' || $lead === null || !crm_lead_has_whatsapp_message_id($lead, $baseMessageId)) {
+        return false;
+    }
+
+    $ids = [];
+    foreach ($messageIds as $messageId) {
+        $messageId = trim((string) $messageId);
+        if ($messageId !== '' && $messageId !== $baseMessageId && !in_array($messageId, $ids, true)) {
+            $ids[] = $messageId;
+        }
+    }
+    if ($ids === []) {
+        return false;
+    }
+
+    foreach ($ids as $messageId) {
+        if (crm_lead_has_whatsapp_message_id($lead, $messageId)) {
+            // The same alias is already registered. It may belong to another
+            // message, so do not attach it to this one a second time.
+            $ids = array_values(array_filter($ids, static fn(string $id): bool => $id !== $messageId));
+        }
+    }
+    if ($ids === []) {
+        return false;
+    }
+
+    $json = json_encode(['for' => $baseMessageId, 'ids' => $ids], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    if (!is_string($json) || $json === '') {
+        return false;
+    }
+    $note = '[crm_message_aliases]' . $json;
+    [$accessSql, $accessParams] = crm_lead_access_sql('leads');
+    $stmt = crm_db()->prepare(
+        'UPDATE leads
+         SET notes = CASE
+                WHEN TRIM(COALESCE(notes, \'\')) = \'\' THEN :note_initial
+                ELSE CONCAT(TRIM(notes), CHAR(10, 10), :note_append)
+             END
+         WHERE id = :id' . $accessSql
+    );
+    $stmt->execute([
+        'id' => $leadId,
+        'note_initial' => $note,
+        'note_append' => $note,
+    ] + $accessParams);
+
+    return $stmt->rowCount() > 0;
 }
 
 function crm_find_lead_by_pilot_status_message_id(string $messageId): ?array
