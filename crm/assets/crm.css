@@ -1163,13 +1163,29 @@ dd {
 
 .kanban-edit-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(120px, auto) auto;
+  grid-template-columns: auto minmax(0, 1fr) minmax(120px, auto) auto;
   gap: 12px;
   align-items: end;
   padding: 12px;
   background: #f8fafc;
   border: 1px solid rgba(148, 163, 184, 0.18);
   border-radius: 16px;
+}
+
+.kanban-order-controls {
+  display: flex;
+  gap: 4px;
+  align-self: center;
+}
+
+.kanban-order-controls button {
+  padding: 6px 10px;
+  min-width: 34px;
+}
+
+.kanban-order-controls button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .kanban-edit-row > span {

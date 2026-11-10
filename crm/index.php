@@ -395,13 +395,17 @@ foreach ($filteredLeads as $lead) {
             <div class="kanban-edit-list">
               <?php foreach ($kanbanColumns as $index => $column): ?>
                 <div class="kanban-edit-row">
+                  <div class="kanban-order-controls" aria-label="Mover coluna">
+                    <button type="button" data-move-column="up" aria-label="Mover <?= htmlspecialchars((string) $column['label']) ?> para cima">↑</button>
+                    <button type="button" data-move-column="down" aria-label="Mover <?= htmlspecialchars((string) $column['label']) ?> para baixo">↓</button>
+                  </div>
                   <input type="hidden" name="columns[<?= (int) $index ?>][status]" value="<?= htmlspecialchars((string) $column['status']) ?>" />
                   <label>
                     Nome da coluna
                     <input type="text" name="columns[<?= (int) $index ?>][label]" value="<?= htmlspecialchars((string) $column['label']) ?>" required />
                   </label>
                   <span><?= htmlspecialchars((string) $column['status']) ?></span>
-                  <?php if ((string) ($column['status'] ?? '') === 'followup'): ?>
+                  <?php if (in_array((string) ($column['status'] ?? ''), ['followup', 'proposta'], true)): ?>
                     <label class="field-wide">
                       Fluxo automático ao entrar nesta coluna
                       <select name="columns[<?= (int) $index ?>][auto_followup_flow_id]">
@@ -410,7 +414,7 @@ foreach ($filteredLeads as $lead) {
                           <option value="<?= (int) $flow['id'] ?>" <?= (int) ($column['auto_followup_flow_id'] ?? 0) === (int) $flow['id'] ? 'selected' : '' ?>><?= htmlspecialchars((string) $flow['name']) ?></option>
                         <?php endforeach; ?>
                       </select>
-                      <small class="commercial-help">Ao mover um lead para Follow-up, esse fluxo será agendado automaticamente.</small>
+                      <small class="commercial-help">Ao mover um lead para esta coluna, esse fluxo será agendado automaticamente.</small>
                     </label>
                   <?php endif; ?>
                   <?php if ((int) ($column['is_system'] ?? 0) === 0): ?>
@@ -568,7 +572,7 @@ foreach ($filteredLeads as $lead) {
     </main>
       </div>
     </div>
-    <script src="./assets/crm.js?v=20261008-kanban-scrollbar-v2"></script>
+    <script src="./assets/crm.js?v=20261110-kanban-order-flow"></script>
     <script src="./assets/crm-navigation.js?v=20260812-fast-navigation-v3"></script>
   </body>
 </html>

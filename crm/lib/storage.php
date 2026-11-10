@@ -924,7 +924,7 @@ function crm_update_kanban_columns(array $columns, array $removeStatuses = []): 
 
         $autoFollowupFlowId = null;
 
-        if ($status === 'followup') {
+        if (in_array($status, ['followup', 'proposta'], true)) {
             $candidateFlowId = max(0, (int) ($column['auto_followup_flow_id'] ?? 0));
 
             if ($candidateFlowId > 0) {
@@ -3467,7 +3467,7 @@ function crm_move_lead(string $id, string $status, array $orders): bool
         $dateFields = '';
         $dateParams = [];
 
-        if ($previousStatus === 'followup' && $status !== 'followup') {
+        if (in_array($previousStatus, ['followup', 'proposta'], true) && $status !== $previousStatus) {
             $dateFields .= ', followup_flow_id = NULL, followup_started_at = NULL';
         }
 
@@ -3502,7 +3502,7 @@ function crm_move_lead(string $id, string $status, array $orders): bool
             'updated_at' => $now,
         ] + $dateParams + $accessParams);
 
-        if ($previousStatus === 'followup' && $status !== 'followup') {
+        if (in_array($previousStatus, ['followup', 'proposta'], true) && $status !== $previousStatus) {
             $cancelQueue = $pdo->prepare(
                 'UPDATE followup_queue
                  SET status = "cancelado",
@@ -3513,7 +3513,7 @@ function crm_move_lead(string $id, string $status, array $orders): bool
             );
             $cancelQueue->execute([
                 'lead_id' => $id,
-                'error' => 'Cancelado porque o lead saiu da coluna Follow-up.',
+                'error' => 'Cancelado porque o lead saiu da coluna com fluxo automático.',
             ]);
         }
 
@@ -3562,12 +3562,12 @@ function crm_move_lead(string $id, string $status, array $orders): bool
                 ['from_status' => $previousStatus, 'to_status' => $status]
             );
 
-            if ($previousStatus === 'followup' && $status !== 'followup') {
+            if (in_array($previousStatus, ['followup', 'proposta'], true) && $status !== $previousStatus) {
                 crm_record_lead_timeline_event(
                     $id,
                     'followup_cancelled',
                     'Follow-up interrompido',
-                    'O lead saiu da coluna Follow-up; as próximas mensagens pendentes foram canceladas.'
+                    'O lead saiu da coluna com fluxo automático; as próximas mensagens pendentes foram canceladas.'
                 );
             }
         }
@@ -3732,7 +3732,7 @@ function crm_reschedule_followup_flow(int $flowId): void
 {
     $db = crm_db();
     $leads = $db->prepare(
-        'SELECT id FROM leads WHERE status = "followup" AND followup_flow_id = :flow_id'
+        'SELECT id FROM leads WHERE status IN ("followup", "proposta") AND followup_flow_id = :flow_id'
     );
     $leads->execute(['flow_id' => $flowId]);
     $activeLeads = $leads->fetchAll();
@@ -3829,7 +3829,7 @@ function crm_assign_followup_flow(string $leadId, int $flowId, bool $automatic =
         $firstContactSql = (string) ($lead['first_contact_at'] ?? '') === '' ? ', first_contact_at = :first_contact_at' : '';
         $update = $db->prepare(
             'UPDATE leads
-            SET status = "followup",
+            SET status = :target_status,
                 followup_flow_id = :flow_id,
                 followup_started_at = :started_at,
                 last_activity_at = :last_activity_at,
@@ -3839,6 +3839,7 @@ function crm_assign_followup_flow(string $leadId, int $flowId, bool $automatic =
         );
         $now = date('Y-m-d H:i:s');
         $updateParams = [
+            'target_status' => $automatic && (string) ($lead['status'] ?? '') === 'proposta' ? 'proposta' : 'followup',
             'id' => $leadId,
             'flow_id' => $flowId,
             'started_at' => $now,
@@ -3881,7 +3882,7 @@ function crm_assign_followup_flow(string $leadId, int $flowId, bool $automatic =
         if ($update->rowCount() > 0) {
             $previousStatus = (string) ($lead['status'] ?? '');
 
-            if ($previousStatus !== 'followup') {
+            if ($previousStatus !== $updateParams['target_status']) {
                 if ($previousStatus === 'novo') {
                     crm_record_lead_timeline_event(
                         $leadId,
@@ -3896,10 +3897,10 @@ function crm_assign_followup_flow(string $leadId, int $flowId, bool $automatic =
                     $leadId,
                     'lead_moved',
                     'Lead movido no funil',
-                    'De ' . crm_kanban_status_label($previousStatus) . ' para ' . crm_kanban_status_label('followup') . '.',
+                    'De ' . crm_kanban_status_label($previousStatus) . ' para ' . crm_kanban_status_label($updateParams['target_status']) . '.',
                     $automatic ? 'Sistema' : null,
                     null,
-                    ['from_status' => $previousStatus, 'to_status' => 'followup']
+                    ['from_status' => $previousStatus, 'to_status' => $updateParams['target_status']]
                 );
             }
 
@@ -3917,7 +3918,7 @@ function crm_assign_followup_flow(string $leadId, int $flowId, bool $automatic =
         $db->commit();
         $updated = $update->rowCount() > 0;
         if ($updated) {
-            crm_sync_lead_stage_to_rd_marketing($leadId, (string) ($lead['status'] ?? ''), 'followup');
+            crm_sync_lead_stage_to_rd_marketing($leadId, (string) ($lead['status'] ?? ''), $updateParams['target_status']);
         }
         return $updated;
     } catch (Throwable $error) {
@@ -3928,7 +3929,7 @@ function crm_assign_followup_flow(string $leadId, int $flowId, bool $automatic =
 
 function crm_trigger_automatic_followup(string $leadId, string $fromStatus, string $toStatus): array
 {
-    if ($toStatus !== 'followup' || $fromStatus === $toStatus) {
+    if (!in_array($toStatus, ['followup', 'proposta'], true) || $fromStatus === $toStatus) {
         return [
             'ok' => true,
             'triggered' => false,
@@ -4005,7 +4006,7 @@ function crm_stop_followup_after_incoming_reply(string $leadId): array
         $leadStmt->execute(['id' => $leadId]);
         $lead = $leadStmt->fetch();
 
-        if (!is_array($lead) || (string) ($lead['status'] ?? '') !== 'followup') {
+        if (!is_array($lead) || !in_array((string) ($lead['status'] ?? ''), ['followup', 'proposta'], true)) {
             $db->commit();
 
             return [
@@ -4024,7 +4025,7 @@ function crm_stop_followup_after_incoming_reply(string $leadId): array
                  last_activity_type = "incoming_reply",
                  updated_at = :updated_at
              WHERE id = :id
-               AND status = "followup"'
+               AND status IN ("followup", "proposta")'
         );
         $updateLead->execute([
             'id' => $leadId,
@@ -4087,7 +4088,8 @@ function crm_read_due_followups(int $limit = 20): array
         LEFT JOIN whatsapp_templates t ON t.id = s.template_id
         LEFT JOIN crm_users ON crm_users.id = l.assigned_user_id
         WHERE q.status = "pendente"
-          AND l.status = "followup"
+          AND l.status IN ("followup", "proposta")
+          AND l.followup_flow_id = q.flow_id
           AND q.scheduled_at <= :now_due
           AND NOT EXISTS (
             SELECT 1

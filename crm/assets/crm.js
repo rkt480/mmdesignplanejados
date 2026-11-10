@@ -1,6 +1,31 @@
 const cards = document.querySelectorAll(".kanban-card");
 const dropzones = document.querySelectorAll(".kanban-dropzone");
 const kanbanBoard = document.querySelector(".kanban-board");
+const kanbanEditList = document.querySelector(".kanban-edit-list");
+
+if (kanbanEditList) {
+  const syncColumnButtons = () => {
+    const rows = [...kanbanEditList.querySelectorAll(".kanban-edit-row")];
+    rows.forEach((row, index) => {
+      row.querySelector('[data-move-column="up"]').disabled = index === 0;
+      row.querySelector('[data-move-column="down"]').disabled = index === rows.length - 1;
+    });
+  };
+
+  kanbanEditList.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-move-column]");
+    if (!button || !kanbanEditList.contains(button)) return;
+    const row = button.closest(".kanban-edit-row");
+    const sibling = button.dataset.moveColumn === "up" ? row.previousElementSibling : row.nextElementSibling;
+    if (!sibling) return;
+    if (button.dataset.moveColumn === "up") kanbanEditList.insertBefore(row, sibling);
+    else kanbanEditList.insertBefore(sibling, row);
+    syncColumnButtons();
+    row.querySelector(`[data-move-column="${button.dataset.moveColumn}"]`).focus();
+  });
+
+  syncColumnButtons();
+}
 const kanbanScrollbar = document.querySelector("[data-kanban-scrollbar]");
 const kanbanScrollTrack = kanbanScrollbar?.querySelector("[data-kanban-scroll-track]");
 const kanbanScrollThumb = kanbanScrollbar?.querySelector("[data-kanban-scroll-thumb]");
