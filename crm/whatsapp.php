@@ -779,15 +779,14 @@ function whatsapp_page_note_blocks(string $notes): array
     $recordStart = '(?:\[crm_message_aliases\]|\[crm_pending_message_ids\]|Resposta automática fora do horário enviada via|Observação do CRM em|Mensagem recebida pelo provedor anterior|Mensagem recebida pela Meta Cloud API|Mensagem recebida pela Pilot Status|Mídia recebida pela (?:Meta Cloud API|Pilot Status)|Mídia enviada (?:via|pelo)|Mensagem enviada (?:via|pelo)|Template .+ enviado (?:automaticamente )?via|Falha ao enviar via|Pilot Status evento:)';
     $blocks = [];
 
-    // A resposta fora do horário pode conter parágrafos separados por linhas
-    // em branco. Só considere uma linha em branco como separador quando o
-    // próximo bloco começar com um marcador conhecido do CRM.
-    $groups = preg_split('/(?:\R){2,}(?=^' . $recordStart . ')/mu', trim($notes)) ?: [];
+    // Mensagens e templates podem conter vários parágrafos. Somente um novo
+    // marcador de registro encerra a mensagem anterior.
+    $groups = preg_split('/(?=^' . $recordStart . ')/mu', trim($notes)) ?: [];
 
     foreach ($groups as $group) {
         $group = trim($group);
 
-        if (preg_match('/^Resposta automática fora do horário enviada via /iu', $group) === 1) {
+        if (preg_match('/^' . $recordStart . '/iu', $group) === 1) {
             if ($group !== '') {
                 $blocks[] = $group;
             }
@@ -802,13 +801,7 @@ function whatsapp_page_note_blocks(string $notes): array
                 continue;
             }
 
-            foreach (preg_split('/(?=^' . $recordStart . ')/mu', $legacyGroup) ?: [] as $block) {
-                $block = trim($block);
-
-                if ($block !== '') {
-                    $blocks[] = $block;
-                }
-            }
+            $blocks[] = $legacyGroup;
         }
     }
 
