@@ -7128,3 +7128,4 @@ textarea:focus {
 
 .wa-reply-menu button[hidden], .wa-reply-menu span:empty { display: none !important; }
 .wa-reply-menu span { display: block; padding: 6px 9px; line-height: 1.4; }
+.wa-reply-menu button:not([hidden]) { display: block; width: 100%; text-align: left; }

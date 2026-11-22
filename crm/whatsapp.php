@@ -2824,7 +2824,7 @@ if ($isWaConversationFragment) {
       const waReplyMenu = document.createElement("div");
       waReplyMenu.className = "wa-reply-menu";
       waReplyMenu.hidden = true;
-      waReplyMenu.innerHTML = '<button type="button">Responder</button><span></span>';
+      waReplyMenu.innerHTML = '<button type="button" data-wa-menu-reply>Responder</button><button type="button" data-wa-menu-download hidden>Baixar mídia</button><span></span>';
       document.body.append(waReplyMenu);
       let waReplyTarget = null;
       const closeWaReplyMenu = () => { waReplyMenu.hidden = true; waReplyTarget = null; };
@@ -2839,9 +2839,43 @@ if ($isWaConversationFragment) {
         preview.hidden = false;
         form.querySelector("[data-wa-message]")?.focus();
       };
-      waReplyMenu.querySelector("button").addEventListener("click", () => {
+      waReplyMenu.querySelector("[data-wa-menu-reply]").addEventListener("click", () => {
         selectWaReply(waReplyTarget);
         closeWaReplyMenu();
+      });
+      waReplyMenu.querySelector("[data-wa-menu-download]").addEventListener("click", async () => {
+        const article = waReplyTarget;
+        const token = article?.dataset.waMediaToken || "";
+        const leadId = document.body.dataset.waActiveLeadId || "";
+        const filename = article?.dataset.waMediaName || "midia";
+        closeWaReplyMenu();
+        if (!token || !leadId) return;
+
+        try {
+          const endpoint = new URL("download-chat-media.php", window.location.href);
+          endpoint.searchParams.set("lead_id", leadId);
+          endpoint.searchParams.set("media", token);
+          const response = await fetch(endpoint, { credentials: "same-origin", cache: "no-store" });
+          if (!response.ok || (response.headers.get("Content-Type") || "").includes("application/json")) {
+            const data = await response.json().catch(() => ({}));
+            throw new Error(data.error || "Não foi possível baixar esta mídia.");
+          }
+          const blobUrl = URL.createObjectURL(await response.blob());
+          const link = document.createElement("a");
+          link.href = blobUrl;
+          link.download = filename;
+          document.body.append(link);
+          link.click();
+          link.remove();
+          window.setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+        } catch (error) {
+          const notice = document.createElement("div");
+          notice.className = "wa-toast";
+          notice.setAttribute("role", "alert");
+          notice.textContent = error instanceof Error ? error.message : "Não foi possível baixar esta mídia.";
+          document.querySelector(".wa-thread")?.prepend(notice);
+          window.setTimeout(() => notice.remove(), 5000);
+        }
       });
       document.addEventListener("pointerdown", (event) => {
         if (!waReplyMenu.contains(event.target)) closeWaReplyMenu();
@@ -2850,10 +2884,12 @@ if ($isWaConversationFragment) {
         if (!article || article.classList.contains("wa-message-note")) return;
         waReplyTarget = article;
         const enabled = Boolean(article.dataset.waReplyId);
-        const replyButton = waReplyMenu.querySelector("button");
+        const replyButton = waReplyMenu.querySelector("[data-wa-menu-reply]");
         replyButton.hidden = !enabled;
         replyButton.disabled = !enabled;
-        waReplyMenu.querySelector("span").textContent = enabled ? "" : "Não é possível citar esta mensagem: o ID original não foi registrado no histórico.";
+        const canDownload = Boolean(article.dataset.waMediaToken);
+        waReplyMenu.querySelector("[data-wa-menu-download]").hidden = !canDownload;
+        waReplyMenu.querySelector("span").textContent = enabled || canDownload ? "" : "Não é possível citar esta mensagem: o ID original não foi registrado no histórico.";
         waReplyMenu.style.left = `${Math.min(x, window.innerWidth - 235)}px`;
         waReplyMenu.style.top = `${Math.min(y, window.innerHeight - 80)}px`;
         waReplyMenu.hidden = false;
