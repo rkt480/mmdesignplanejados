@@ -7129,3 +7129,21 @@ textarea:focus {
 .wa-reply-menu button[hidden], .wa-reply-menu span:empty { display: none !important; }
 .wa-reply-menu span { display: block; padding: 6px 9px; line-height: 1.4; }
 .wa-reply-menu button:not([hidden]) { display: block; width: 100%; text-align: left; }
+
+.wa-reply-menu button[data-wa-menu-reply]:not([hidden]) {
+  display: inline-flex;
+  width: auto;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 16px;
+  border: 1px solid #d9e3df;
+  border-radius: 8px;
+  background: #fff;
+  color: #174b3a;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 400;
+  box-shadow: 0 5px 20px #0002;
+  cursor: pointer;
+}
