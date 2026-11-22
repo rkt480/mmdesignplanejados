@@ -890,7 +890,7 @@ function pilot_status_extract_delivery_event(array $payload): array
     return ['event' => '', 'id' => '', 'internal_id' => '', 'message_ids' => [], 'correlation_id' => '', 'biz_opaque_callback_data' => '', 'destination' => '', 'error' => ''];
 }
 
-function pilot_status_send_text(string $number, string $text): array
+function pilot_status_send_text(string $number, string $text, string $replyToMessageId = ''): array
 {
     $to = pilot_status_normalize_destination_number($number);
 
@@ -898,10 +898,11 @@ function pilot_status_send_text(string $number, string $text): array
         return ['ok' => false, 'error' => 'WhatsApp inválido.'];
     }
 
-    return pilot_status_request('/messages/send', [
-        'destinationNumber' => $to,
-        'text' => $text,
-    ]);
+    $payload = ['destinationNumber' => $to, 'text' => $text];
+    if ($replyToMessageId !== '') {
+        $payload['replyToMessageId'] = $replyToMessageId;
+    }
+    return pilot_status_request('/messages/send', $payload);
 }
 
 function pilot_status_normalize_destination_number(string $number): string
@@ -1330,7 +1331,8 @@ function pilot_status_send_media(
     string $mimeType,
     string $mediaType,
     string $caption = '',
-    string $fileName = ''
+    string $fileName = '',
+    string $replyToMessageId = ''
 ): array {
     $to = pilot_status_normalize_destination_number($number);
 
@@ -1376,6 +1378,10 @@ function pilot_status_send_media(
         'media' => $mediaReference,
         'mediaType' => $mediaType,
     ];
+
+    if ($replyToMessageId !== '') {
+        $payload['replyToMessageId'] = $replyToMessageId;
+    }
 
     if ($mediaType !== 'audio' && trim($caption) !== '') {
         // A direct-media request must not include `text`: Pilot Status then

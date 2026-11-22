@@ -56,6 +56,16 @@ if (crm_whatsapp_provider() === 'meta_cloud' && !crm_whatsapp_is_in_24h_window($
     exit;
 }
 
+$replyToMessageId = (string) ($_POST['reply_to_message_id'] ?? '');
+if ($replyToMessageId !== '') {
+    if (strlen($replyToMessageId) > 512 || trim($replyToMessageId) !== $replyToMessageId
+        || preg_match('/[\x00-\x1F\x7F]/', $replyToMessageId) === 1
+        || !crm_lead_has_whatsapp_message_id($lead, $replyToMessageId)) {
+        header('Location: ' . $redirect . '&send_error=' . rawurlencode('A mensagem citada não está disponível nesta conversa. Escolha outra mensagem.'));
+        exit;
+    }
+}
+
 $number = crm_normalize_lead_whatsapp((string) ($lead['whatsapp'] ?? ''));
 
 if ($number === '') {
@@ -220,8 +230,8 @@ if ($hasMedia) {
 }
 
 $result = $hasMedia
-    ? crm_whatsapp_send_media($number, $mediaPath, $mimeType, $mediaType, $messageWithSender, $fileName)
-    : crm_whatsapp_send_text($number, $messageWithSender, false);
+    ? crm_whatsapp_send_media($number, $mediaPath, $mimeType, $mediaType, $messageWithSender, $fileName, $replyToMessageId)
+    : crm_whatsapp_send_text($number, $messageWithSender, false, $replyToMessageId);
 
 if (($result['ok'] ?? false) === true) {
     $sentMessageId = crm_whatsapp_response_message_id($result);
@@ -267,6 +277,9 @@ if (($result['ok'] ?? false) === true) {
         $sentDescription .= "\nCRM message ID: " . $sentMessageId;
     }
     $sentDescription .= crm_whatsapp_message_ids_marker($sentMessageIds);
+    if ($replyToMessageId !== '') {
+        $sentDescription .= crm_whatsapp_reply_context_note(['id' => $replyToMessageId]);
+    }
     crm_append_lead_note(
         $leadId,
         ($hasMedia ? 'Mídia enviada via ' : 'Mensagem enviada via ') . $providerLabel . ' em ' . date('d/m/Y H:i:s') . ":\n" . $sentDescription

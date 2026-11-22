@@ -2886,6 +2886,10 @@ function crm_lead_has_whatsapp_message_id(array $lead, string $messageId): bool
     }
 
     $notes = (string) ($lead['notes'] ?? '');
+    $initialMarker = json_encode($messageId, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    if (is_string($initialMarker) && str_contains($notes, '[crm_initial_message_id]' . $initialMarker)) {
+        return true;
+    }
     foreach (['CRM message ID: ', 'Pilot Status ID: '] as $linePrefix) {
         $lineMarker = $linePrefix . $messageId;
         if (preg_match('/(?:^|\R)' . preg_quote($lineMarker, '/') . '(?:\R|$)/u', $notes) === 1) {

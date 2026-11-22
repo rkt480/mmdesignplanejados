@@ -265,6 +265,7 @@ function whatsapp_page_clean_sent_message_text(string $text): string
     $text = preg_replace('/\R?CRM message ID:\s*[^\r\n]+/iu', '', $text) ?? $text;
     $text = preg_replace('/\R?\[crm_message_ids\][^\r\n]+/iu', '', $text) ?? $text;
     $text = preg_replace('/\R?\[crm_message_aliases\][^\r\n]+/iu', '', $text) ?? $text;
+    $text = preg_replace('/\R?\[crm_reply\][^\r\n]+/iu', '', $text) ?? $text;
     $text = preg_replace('/\R?CRM gatilho de horário:\s*[^\r\n]+/iu', '', $text) ?? $text;
 
     return trim($text);
@@ -762,7 +763,7 @@ function whatsapp_page_message_provider(string $providerLabel, string $fallback 
 function whatsapp_page_is_technical_delivery_note(string $text): bool
 {
     return preg_match(
-        '/^(?:\[crm_message_aliases\]|\[crm_message_ids\]|\[crm_pending_message_ids\]|Pilot Status evento:|wamid\.|WhatsApp confirmou (?:o envio|a entrega|a leitura)|Status inicial:|Pilot Status ID:)/iu',
+        '/^(?:\[crm_initial_message_id\]|\[crm_message_aliases\]|\[crm_message_ids\]|\[crm_pending_message_ids\]|Pilot Status evento:|wamid\.|WhatsApp confirmou (?:o envio|a entrega|a leitura)|Status inicial:|Pilot Status ID:)/iu',
         trim($text)
     ) === 1;
 }
@@ -776,7 +777,7 @@ function whatsapp_page_is_technical_delivery_note(string $text): bool
  */
 function whatsapp_page_note_blocks(string $notes): array
 {
-    $recordStart = '(?:\[crm_message_aliases\]|\[crm_pending_message_ids\]|Resposta automática fora do horário enviada via|Observação do CRM em|Mensagem recebida pelo provedor anterior|Mensagem recebida pela Meta Cloud API|Mensagem recebida pela Pilot Status|Mídia recebida pela (?:Meta Cloud API|Pilot Status)|Mídia enviada (?:via|pelo)|Mensagem enviada (?:via|pelo)|Template .+ enviado (?:automaticamente )?via|Falha ao enviar via|Pilot Status evento:)';
+    $recordStart = '(?:\[crm_initial_message_id\]|\[crm_message_aliases\]|\[crm_pending_message_ids\]|Resposta automática fora do horário enviada via|Observação do CRM em|Mensagem recebida pelo provedor anterior|Mensagem recebida pela Meta Cloud API|Mensagem recebida pela Pilot Status|Mídia recebida pela (?:Meta Cloud API|Pilot Status)|Mídia enviada (?:via|pelo)|Mensagem enviada (?:via|pelo)|Template .+ enviado (?:automaticamente )?via|Falha ao enviar via|Pilot Status evento:)';
     $blocks = [];
 
     // Mensagens e templates podem conter vários parágrafos. Somente um novo
@@ -947,6 +948,12 @@ function whatsapp_page_messages_for_lead(array $lead): array
     $initialMessage = trim((string) ($lead['message'] ?? ''));
     $initialReplyContext = whatsapp_page_extract_reply_context_from_text($initialMessage);
 
+    $initialId = '';
+    if (preg_match('/\[crm_initial_message_id\]([^\r\n]+)/u', (string) ($lead['notes'] ?? ''), $initialMatch) === 1) {
+        $decodedInitialId = json_decode($initialMatch[1], true);
+        $initialId = is_string($decodedInitialId) ? $decodedInitialId : '';
+    }
+
     if ($initialMessage !== '') {
         $messages[] = [
             'direction' => 'incoming',
@@ -955,6 +962,7 @@ function whatsapp_page_messages_for_lead(array $lead): array
             'text' => $initialMessage,
             'label' => 'Mensagem recebida',
             'reply_context' => $initialReplyContext,
+            'message_id' => $initialId,
         ];
     }
 
@@ -993,6 +1001,7 @@ function whatsapp_page_messages_for_lead(array $lead): array
                     'text' => $incomingText,
                     'label' => 'Recebida',
                     'reply_context' => $replyContext,
+                    'message_ids' => $blockMessageIds,
                 ];
                 continue;
             }
@@ -1007,6 +1016,7 @@ function whatsapp_page_messages_for_lead(array $lead): array
                     'text' => $incomingText,
                     'label' => 'Recebida',
                     'reply_context' => $replyContext,
+                    'message_ids' => $blockMessageIds,
                 ];
                 continue;
             }
@@ -1021,6 +1031,7 @@ function whatsapp_page_messages_for_lead(array $lead): array
                     'text' => $incomingText,
                     'label' => 'Recebida',
                     'reply_context' => $replyContext,
+                    'message_ids' => $blockMessageIds,
                 ];
                 continue;
             }
@@ -1063,7 +1074,9 @@ function whatsapp_page_messages_for_lead(array $lead): array
 
                 if (is_array($media) && whatsapp_page_media_url((string) ($media['url'] ?? '')) !== '') {
                     $sentProviderLabel = strtolower((string) $match[1]);
-                    $caption = whatsapp_page_clean_sent_message_text(trim((string) ($match[4] ?? '')));
+                    $rawCaption = trim((string) ($match[4] ?? ''));
+                    $sentReplyContext = whatsapp_page_extract_reply_context_from_text($rawCaption);
+                    $caption = whatsapp_page_clean_sent_message_text($rawCaption);
                     $messages[] = [
                         'direction' => 'outgoing',
                         'provider' => whatsapp_page_message_provider($sentProviderLabel),
@@ -1075,6 +1088,7 @@ function whatsapp_page_messages_for_lead(array $lead): array
                             ? $blockMessageId
                             : trim((string) ($media['crm_message_id'] ?? ($media['message_id'] ?? ''))),
                         'message_ids' => $blockMessageIds,
+                        'reply_context' => $sentReplyContext,
                     ];
                     continue;
                 }
@@ -1082,7 +1096,9 @@ function whatsapp_page_messages_for_lead(array $lead): array
 
             if (preg_match('/^(?:Mensagem|Mídia) enviada (?:via|pelo) (.+) em ([0-9]{2}\/[0-9]{2}\/[0-9]{4} [0-9]{2}:[0-9]{2}(?::[0-9]{2})?):\R(.+)$/su', $block, $match) === 1) {
                 $sentProviderLabel = strtolower((string) $match[1]);
-                $sentText = whatsapp_page_clean_sent_message_text(trim((string) $match[3]));
+                $rawSentText = trim((string) $match[3]);
+                $sentReplyContext = whatsapp_page_extract_reply_context_from_text($rawSentText);
+                $sentText = whatsapp_page_clean_sent_message_text($rawSentText);
                 $sentMessage = [
                     'direction' => 'outgoing',
                     'provider' => whatsapp_page_message_provider($sentProviderLabel),
@@ -1091,6 +1107,7 @@ function whatsapp_page_messages_for_lead(array $lead): array
                     'label' => whatsapp_page_delivery_label($lead, $blockMessageId, $block),
                     'message_id' => $blockMessageId,
                     'message_ids' => $blockMessageIds,
+                    'reply_context' => $sentReplyContext,
                 ];
 
                 $sentMediaType = whatsapp_page_infer_media_type_from_text($sentText);
@@ -1791,7 +1808,7 @@ if ($isWaConversationFragment) {
                 $messageMediaType = in_array($messageMediaType, ['image', 'sticker', 'audio', 'video', 'document'], true) ? $messageMediaType : 'file';
                 $messageDomId = whatsapp_page_message_dom_id($message);
               ?>
-              <article<?= $messageDomId !== '' ? ' id="' . htmlspecialchars($messageDomId, ENT_QUOTES, 'UTF-8') . '"' : '' ?> class="wa-message wa-message-<?= htmlspecialchars((string) $message['direction']) ?>">
+              <article<?= $messageDomId !== '' ? ' id="' . htmlspecialchars($messageDomId, ENT_QUOTES, 'UTF-8') . '"' : '' ?> class="wa-message wa-message-<?= htmlspecialchars((string) $message['direction']) ?>" data-wa-reply-id="<?= htmlspecialchars((string) (whatsapp_page_message_id_candidates($message)[0] ?? ''), ENT_QUOTES, 'UTF-8') ?>" data-wa-reply-author="<?= htmlspecialchars(whatsapp_page_reply_context_label($message), ENT_QUOTES, 'UTF-8') ?>" data-wa-reply-preview="<?= htmlspecialchars(whatsapp_page_reply_context_preview($message), ENT_QUOTES, 'UTF-8') ?>">
                 <?php if (is_array($message['reply_to'] ?? null)): ?>
                   <?= whatsapp_page_quoted_message_markup($message['reply_to']) ?>
                 <?php endif; ?>
@@ -1859,6 +1876,8 @@ if ($isWaConversationFragment) {
             <input type="hidden" name="lead_id" value="<?= htmlspecialchars((string) ($activeLead['id'] ?? '')) ?>" />
             <input type="hidden" name="provider_filter" value="<?= htmlspecialchars($providerFilter) ?>" />
             <div class="wa-composer-main">
+              <div class="wa-reply-preview" data-wa-reply-preview hidden><span data-wa-reply-label></span><button type="button" data-wa-reply-cancel aria-label="Cancelar resposta">×</button></div>
+              <input type="hidden" name="reply_to_message_id" data-wa-reply-input disabled />
               <div class="wa-media-preview" data-wa-preview hidden></div>
               <div class="wa-recording-preview" data-wa-recording-preview hidden aria-live="polite">
                 <button class="wa-recording-discard" type="button" title="Descartar gravação" aria-label="Descartar gravação" data-wa-record-discard>
@@ -2785,6 +2804,65 @@ if ($isWaConversationFragment) {
 
       startIncomingMessageListener();
 
+      const waReplyMenu = document.createElement("div");
+      waReplyMenu.className = "wa-reply-menu";
+      waReplyMenu.hidden = true;
+      waReplyMenu.innerHTML = '<button type="button">Responder</button><span></span>';
+      document.body.append(waReplyMenu);
+      let waReplyTarget = null;
+      const closeWaReplyMenu = () => { waReplyMenu.hidden = true; waReplyTarget = null; };
+      const selectWaReply = (article) => {
+        const form = document.querySelector("[data-wa-composer]");
+        const input = form?.querySelector("[data-wa-reply-input]");
+        const preview = form?.querySelector("[data-wa-reply-preview]");
+        if (!form || !input || !preview || !article?.dataset.waReplyId) return;
+        input.value = article.dataset.waReplyId;
+        input.disabled = false;
+        preview.querySelector("[data-wa-reply-label]").textContent = `${article.dataset.waReplyAuthor}: ${article.dataset.waReplyPreview}`;
+        preview.hidden = false;
+        form.querySelector("[data-wa-message]")?.focus();
+      };
+      waReplyMenu.querySelector("button").addEventListener("click", () => {
+        selectWaReply(waReplyTarget);
+        closeWaReplyMenu();
+      });
+      document.addEventListener("pointerdown", (event) => {
+        if (!waReplyMenu.contains(event.target)) closeWaReplyMenu();
+      });
+      const openWaReplyMenu = (article, x, y) => {
+        if (!article || article.classList.contains("wa-message-note")) return;
+        waReplyTarget = article;
+        const enabled = Boolean(article.dataset.waReplyId);
+        waReplyMenu.querySelector("button").hidden = !enabled;
+        waReplyMenu.querySelector("span").textContent = enabled ? "" : "Esta mensagem antiga não tem ID recuperável para resposta.";
+        waReplyMenu.style.left = `${Math.min(x, window.innerWidth - 235)}px`;
+        waReplyMenu.style.top = `${Math.min(y, window.innerHeight - 80)}px`;
+        waReplyMenu.hidden = false;
+      };
+      document.addEventListener("contextmenu", (event) => {
+        const article = event.target.closest?.(".wa-message-surface .wa-message");
+        if (!article || article.classList.contains("wa-message-note")) return;
+        event.preventDefault();
+        openWaReplyMenu(article, event.clientX, event.clientY);
+      });
+      let waLongPressTimer = null;
+      let waLongPressStart = null;
+      const clearWaLongPress = () => { clearTimeout(waLongPressTimer); waLongPressTimer = null; };
+      document.addEventListener("touchstart", (event) => {
+        const article = event.target.closest?.(".wa-message-surface .wa-message");
+        if (!article || event.touches.length !== 1) return;
+        const touch = event.touches[0];
+        waLongPressStart = {x: touch.clientX, y: touch.clientY};
+        clearWaLongPress();
+        waLongPressTimer = setTimeout(() => openWaReplyMenu(article, touch.clientX, touch.clientY), 550);
+      }, {passive: true});
+      document.addEventListener("touchmove", (event) => {
+        const touch = event.touches[0];
+        if (touch && waLongPressStart && Math.hypot(touch.clientX - waLongPressStart.x, touch.clientY - waLongPressStart.y) > 10) clearWaLongPress();
+      }, {passive: true});
+      document.addEventListener("touchend", clearWaLongPress, {passive: true});
+      document.addEventListener("touchcancel", clearWaLongPress, {passive: true});
+
       const bindWaComposer = (root = document) => {
       root.querySelectorAll(".wa-composer").forEach((form) => {
         const attachButton = form.querySelector("[data-wa-attach]");
@@ -2800,6 +2878,12 @@ if ($isWaConversationFragment) {
         const recordingWave = form.querySelector("[data-wa-recording-wave]");
         const recordingDiscardButton = form.querySelector("[data-wa-record-discard]");
         const messageInput = form.querySelector("[data-wa-message]");
+        form.querySelector("[data-wa-reply-cancel]")?.addEventListener("click", () => {
+          const input = form.querySelector("[data-wa-reply-input]");
+          input.value = "";
+          input.disabled = true;
+          form.querySelector("[data-wa-reply-preview]").hidden = true;
+        });
         const sendButton = form.querySelector("[data-wa-send], .wa-send-button");
         let previewUrl = "";
         let recorder = null;
@@ -3785,6 +3869,7 @@ if ($isWaConversationFragment) {
           return false;
         }
 
+        closeWaReplyMenu();
         const requestId = ++waSoftSwitchRequestId;
         waConversationViewGeneration += 1;
         waIncomingListenerGeneration += 1;
