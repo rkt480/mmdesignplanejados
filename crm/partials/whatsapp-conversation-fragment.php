@@ -36,8 +36,13 @@ crm_require_login();
           $messageMediaType = is_array($message['media'] ?? null) ? (string) ($message['media']['type'] ?? '') : '';
           $messageMediaType = in_array($messageMediaType, ['image', 'sticker', 'audio', 'video', 'document'], true) ? $messageMediaType : 'file';
           $messageDomId = whatsapp_page_message_dom_id($message);
+          $messageMedia = is_array($message['media'] ?? null) ? $message['media'] : [];
+          $messageDownloadToken = crm_whatsapp_download_media_token($messageMedia);
+          $messageDownloadName = $messageDownloadToken !== ''
+              ? crm_whatsapp_download_filename($messageMedia, (string) ($messageMedia['url'] ?? ''))
+              : '';
         ?>
-        <article<?= $messageDomId !== '' ? ' id="' . htmlspecialchars($messageDomId, ENT_QUOTES, 'UTF-8') . '"' : '' ?> class="wa-message wa-message-<?= htmlspecialchars((string) $message['direction']) ?>" data-wa-reply-id="<?= htmlspecialchars((string) (whatsapp_page_message_id_candidates($message)[0] ?? ''), ENT_QUOTES, 'UTF-8') ?>" data-wa-reply-author="<?= htmlspecialchars(whatsapp_page_reply_context_label($message), ENT_QUOTES, 'UTF-8') ?>" data-wa-reply-preview="<?= htmlspecialchars(whatsapp_page_reply_context_preview($message), ENT_QUOTES, 'UTF-8') ?>">
+        <article<?= $messageDomId !== '' ? ' id="' . htmlspecialchars($messageDomId, ENT_QUOTES, 'UTF-8') . '"' : '' ?> class="wa-message wa-message-<?= htmlspecialchars((string) $message['direction']) ?>" data-wa-reply-id="<?= htmlspecialchars((string) (whatsapp_page_message_id_candidates($message)[0] ?? ''), ENT_QUOTES, 'UTF-8') ?>" data-wa-reply-author="<?= htmlspecialchars(whatsapp_page_reply_context_label($message), ENT_QUOTES, 'UTF-8') ?>" data-wa-reply-preview="<?= htmlspecialchars(whatsapp_page_reply_context_preview($message), ENT_QUOTES, 'UTF-8') ?>" data-wa-media-token="<?= htmlspecialchars($messageDownloadToken, ENT_QUOTES, 'UTF-8') ?>" data-wa-media-name="<?= htmlspecialchars($messageDownloadName, ENT_QUOTES, 'UTF-8') ?>">
           <?php if (is_array($message['reply_to'] ?? null)): ?>
             <?= whatsapp_page_quoted_message_markup($message['reply_to']) ?>
           <?php endif; ?>
