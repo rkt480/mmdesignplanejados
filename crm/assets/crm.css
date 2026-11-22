@@ -7120,19 +7120,25 @@ textarea:focus {
   }
 }
 
-.wa-reply-menu { position: fixed; z-index: 10000; max-width: 230px; padding: 9px; border-radius: 10px; background: #fff; box-shadow: 0 8px 28px #0003; color: #263b32; font-size: 13px; }
-.wa-reply-menu button { border: 0; background: transparent; cursor: pointer; font: inherit; padding: 6px 12px; }
+.wa-reply-menu {
+  position: fixed;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 230px;
+  background: transparent;
+  box-shadow: none;
+}
 .wa-reply-preview { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 7px 10px; border-left: 3px solid #49a477; background: #eaf5ef; border-radius: 5px; font-size: 12px; }
 .wa-reply-preview button { border: 0; background: transparent; cursor: pointer; font-size: 20px; }
 .wa-reply-preview[hidden], .wa-reply-menu[hidden] { display: none; }
 
 .wa-reply-menu button[hidden], .wa-reply-menu span:empty { display: none !important; }
-.wa-reply-menu span { display: block; padding: 6px 9px; line-height: 1.4; }
-.wa-reply-menu button:not([hidden]) { display: block; width: 100%; text-align: left; }
-
-.wa-reply-menu button[data-wa-menu-reply]:not([hidden]) {
+.wa-reply-menu span { display: block; padding: 10px 16px; border-radius: 8px; background: #fff; box-shadow: 0 5px 20px #0002; color: #263b32; line-height: 1.4; }
+.wa-reply-menu button:not([hidden]) {
   display: inline-flex;
-  width: auto;
+  width: 100%;
   min-height: 44px;
   align-items: center;
   justify-content: center;
