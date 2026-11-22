@@ -2889,10 +2889,10 @@ if ($isWaConversationFragment) {
         replyButton.disabled = !enabled;
         const canDownload = Boolean(article.dataset.waMediaToken);
         waReplyMenu.querySelector("[data-wa-menu-download]").hidden = !canDownload;
-        waReplyMenu.querySelector("span").textContent = enabled || canDownload ? "" : "Não é possível citar esta mensagem: o ID original não foi registrado no histórico.";
-        waReplyMenu.style.left = `${Math.min(x, window.innerWidth - 235)}px`;
-        waReplyMenu.style.top = `${Math.min(y, window.innerHeight - 80)}px`;
+        waReplyMenu.querySelector("span").textContent = enabled ? "" : "Não é possível citar esta mensagem: o ID original não foi registrado no histórico.";
         waReplyMenu.hidden = false;
+        waReplyMenu.style.left = `${Math.max(8, Math.min(x, window.innerWidth - waReplyMenu.offsetWidth - 8))}px`;
+        waReplyMenu.style.top = `${Math.max(8, Math.min(y, window.innerHeight - waReplyMenu.offsetHeight - 8))}px`;
       };
       document.addEventListener("contextmenu", (event) => {
         const article = event.target.closest?.(".wa-message-surface .wa-message");
