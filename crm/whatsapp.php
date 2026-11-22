@@ -365,6 +365,14 @@ function whatsapp_page_message_ids_from_text(string $text): array
     return $ids;
 }
 
+function whatsapp_page_clean_incoming_message_text(string $text): string
+{
+    // IDs travel in CRM note metadata, never in the customer's message body.
+    $text = preg_replace('/(?:^|\R)\[crm_message_ids\][^\r\n]*/u', '', $text) ?? $text;
+
+    return trim($text);
+}
+
 /**
  * @param list<string> $blocks
  * @return list<list<string>>
@@ -994,6 +1002,7 @@ function whatsapp_page_messages_for_lead(array $lead): array
             if (preg_match('/^Mensagem recebida pelo provedor anterior em ([0-9]{2}\/[0-9]{2}\/[0-9]{4} [0-9]{2}:[0-9]{2}(?::[0-9]{2})?):\R(.+)$/su', $block, $match) === 1) {
                 $incomingText = trim((string) $match[2]);
                 $replyContext = whatsapp_page_extract_reply_context_from_text($incomingText);
+                $incomingText = whatsapp_page_clean_incoming_message_text($incomingText);
                 $messages[] = [
                     'direction' => 'incoming',
                     'provider' => 'pilot_status',
@@ -1009,6 +1018,7 @@ function whatsapp_page_messages_for_lead(array $lead): array
             if (preg_match('/^Mensagem recebida pela Meta Cloud API em ([0-9]{2}\/[0-9]{2}\/[0-9]{4} [0-9]{2}:[0-9]{2}(?::[0-9]{2})?):\R(.+)$/su', $block, $match) === 1) {
                 $incomingText = trim((string) $match[2]);
                 $replyContext = whatsapp_page_extract_reply_context_from_text($incomingText);
+                $incomingText = whatsapp_page_clean_incoming_message_text($incomingText);
                 $messages[] = [
                     'direction' => 'incoming',
                     'provider' => 'meta_cloud',
@@ -1024,6 +1034,7 @@ function whatsapp_page_messages_for_lead(array $lead): array
             if (preg_match('/^Mensagem recebida pela Pilot Status em ([0-9]{2}\/[0-9]{2}\/[0-9]{4} [0-9]{2}:[0-9]{2}(?::[0-9]{2})?):\R(.+)$/su', $block, $match) === 1) {
                 $incomingText = trim((string) $match[2]);
                 $replyContext = whatsapp_page_extract_reply_context_from_text($incomingText);
+                $incomingText = whatsapp_page_clean_incoming_message_text($incomingText);
                 $messages[] = [
                     'direction' => 'incoming',
                     'provider' => 'pilot_status',
