@@ -2833,8 +2833,10 @@ if ($isWaConversationFragment) {
         if (!article || article.classList.contains("wa-message-note")) return;
         waReplyTarget = article;
         const enabled = Boolean(article.dataset.waReplyId);
-        waReplyMenu.querySelector("button").hidden = !enabled;
-        waReplyMenu.querySelector("span").textContent = enabled ? "" : "Esta mensagem antiga não tem ID recuperável para resposta.";
+        const replyButton = waReplyMenu.querySelector("button");
+        replyButton.hidden = !enabled;
+        replyButton.disabled = !enabled;
+        waReplyMenu.querySelector("span").textContent = enabled ? "" : "Não é possível citar esta mensagem: o ID original não foi registrado no histórico.";
         waReplyMenu.style.left = `${Math.min(x, window.innerWidth - 235)}px`;
         waReplyMenu.style.top = `${Math.min(y, window.innerHeight - 80)}px`;
         waReplyMenu.hidden = false;
